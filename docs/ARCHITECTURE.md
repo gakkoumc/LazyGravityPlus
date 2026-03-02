@@ -1,20 +1,54 @@
 # Architecture & Core Design
 
 ## 1. システム全体構成 / System Overview
-LazyGravity は外部の中間サーバーを経由せず、ユーザーのローカルPC内で完結してDiscord API（WSS経由）とやり取りします。
+LazyGravity は外部の中間サーバーを経由せず、ユーザーのローカルPC内で完結してDiscord/Telegram API とやり取りします。
 
 ```mermaid
 graph TD
-    A[📱 Discord アプリ (スマホ/PC)] -->|WebSocket (Gateway)| B[🔒 Local PC (LazyGravity Bot)]
+    A[📱 Discord アプリ] -->|WebSocket Gateway| B[🔒 Local PC - LazyGravity Bot]
+    T[📱 Telegram アプリ] -->|Long Polling| B
     B -->|REST API| A
-    
+    B -->|Bot API| T
+
     subgraph Local Environment (Your PC)
-        B -->|Spawn/Execute| C[Antigravity CLI / AI Coding Agent]
+        B -->|Platform Abstraction Layer| PA[PlatformAdapter]
+        PA -->|CDP / WebSocket| C[Antigravity / AI Coding Agent]
         B -->|Read/Write| D[📁 Local Workspaces]
         B -.->|Secure Storage| E[.env File (Local)]
         B -.->|Persist State| F[SQLite Database]
     end
 ```
+
+## 1.5. プラットフォーム抽象化レイヤー / Platform Abstraction Layer
+
+コアロジックをプラットフォーム非依存にするため、抽象化レイヤーを導入。
+
+```
+src/platform/
+├── types.ts              # 共通インターフェース (PlatformMessage, PlatformChannel, RichContent, etc.)
+├── adapter.ts            # PlatformAdapter / PlatformAdapterEvents インターフェース
+├── richContentBuilder.ts # イミュータブルビルダー (createRichContent → withTitle → addField → pipe)
+├── discord/
+│   ├── discordAdapter.ts # DiscordAdapter implements PlatformAdapter
+│   └── wrappers.ts       # discord.js オブジェクト ↔ Platform 型の変換
+└── telegram/
+    ├── telegramAdapter.ts    # TelegramAdapter implements PlatformAdapter
+    ├── telegramFormatter.ts  # Markdown → Telegram HTML 変換
+    └── wrappers.ts           # Telegram オブジェクト ↔ Platform 型の変換
+```
+
+### 主要な共通型
+- `PlatformMessage` — メッセージ（送信者、チャンネル、テキスト、添付ファイル）
+- `PlatformChannel` — チャンネル/チャット（send で MessagePayload を送信）
+- `RichContent` — Discord Embed / Telegram HTML の抽象化（title, description, fields, color, footer）
+- `MessagePayload` — 送信内容（text + richContent + components + ephemeral）
+- `PlatformButtonInteraction` / `PlatformSelectInteraction` — ボタン/セレクトメニューの抽象化
+
+### イベントフロー
+1. `PlatformAdapter.start(events)` でプラットフォーム固有イベントを登録
+2. `EventRouter` が全プラットフォームからのイベントを統一ハンドラーに振り分け
+3. プラットフォーム非依存の `messageHandler`, `buttonHandler`, `selectHandler`, `commandHandler` が処理
+4. `WorkspaceQueue` がワークスペース単位でリクエストをシリアライズ（プラットフォーム横断）
 
 ## 2. 認証・セキュリティ設計
 外部公開をしないためポートマッピングやWebhookは使用しません。
@@ -23,7 +57,9 @@ graph TD
   - `dotenv`パッケージを利用し、ローカルの `.env` ファイルに保存しますが、セキュリティを高めるため、**ファイルパーミッションを厳格化 (例: `chmod 600`)** することを推奨します（必要に応じてOSネイティブのクレデンシャル連携も検討）。
   - GitHub上には `.env.example` のみを提供し、機密情報の漏洩を防止します。
 - **認可 (Authorization):**
-  - メッセージ受信イベント (`messageCreate`), インタラクション受信 (`interactionCreate`) イベントの冒頭にミドルウェア層を設け、発信者の `userId` がホワイトリストの `allowedUserIds` に含まれるか**必ず最初に評価**する。
+  - **Discord**: `messageCreate`, `interactionCreate` イベントの冒頭で `allowedUserIds` ホワイトリストチェック。
+  - **Telegram**: `EventRouter` が `telegramAllowedUserIds` で認証。未設定の場合は全ユーザーを拒否（warn ログ出力）。
+  - プラットフォーム横断で `platform:userId` 形式の認証管理。
 - **入力値の検証とパストラバーサル対策 (Directory Traversal Protection):**
   - ユーザー入力やワークスペース指定に対するディレクトリトラバーサル攻撃（例: `../../etc/passwd`）を防ぐため、基準となるルートディレクトリ（`WORKSPACE_BASE_DIR`）を定義し、すべてのパス解決がその配下に収まることを `path.resolve` 等を用いて厳格にバリデーションします。
 
@@ -48,12 +84,16 @@ Discordの **カテゴリ = プロジェクト**、**チャンネル = チャッ
 ```
 src/database/workspaceBindingRepository.ts  — SQLite CRUD (workspace_bindings テーブル)
 src/database/chatSessionRepository.ts       — SQLite CRUD (chat_sessions テーブル)
+src/database/telegramBindingRepository.ts   — SQLite CRUD (telegram_bindings テーブル: chat_id ↔ workspace)
 src/services/workspaceService.ts            — FS操作・パス検証 (scanWorkspaces, validatePath)
 src/services/channelManager.ts              — Discord カテゴリ/チャンネル管理 (ensureCategory, createSessionChannel, renameChannel)
 src/services/titleGeneratorService.ts       — チャンネル名自動生成 (CDP経由 + テキスト抽出フォールバック)
 src/services/chatSessionService.ts          — Antigravity UI操作 (CDP経由で新規チャット開始・セッション情報取得)
 src/commands/workspaceCommandHandler.ts     — /project コマンド + セレクトメニュー処理
 src/commands/chatCommandHandler.ts          — /new, /chat コマンド
+src/bot/telegramMessageHandler.ts           — Telegram メッセージ→CDP直接連携ハンドラー
+src/bot/eventRouter.ts                      — マルチプラットフォームイベント振り分け + 認証
+src/bot/workspaceQueue.ts                   — ワークスペース単位の排他キュー（プラットフォーム横断）
 ```
 
 ### 将来の拡展
