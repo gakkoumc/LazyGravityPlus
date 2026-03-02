@@ -538,6 +538,8 @@ async function sendPromptToAntigravity(
 
     try {
 
+        logger.debug(`[Prompt] ${prompt}`);
+
         let injectResult;
         if (inboundImages.length > 0) {
             injectResult = await cdp.injectMessageWithImageFiles(

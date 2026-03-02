@@ -87,6 +87,7 @@ export function createTelegramMessageHandler(deps: TelegramMessageHandlerDeps) {
             await message.react('\u{1F440}').catch(() => {});
 
             // Inject prompt into Antigravity
+            logger.debug(`[Prompt] ${promptText}`);
             const injectResult = await cdp.injectMessage(promptText);
             if (!injectResult.ok) {
                 await message.reply({
