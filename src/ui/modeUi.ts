@@ -7,9 +7,63 @@ import {
     ModeService,
 } from '../services/modeService';
 import { CdpService } from '../services/cdpService';
+import type { MessagePayload } from '../platform/types';
+import {
+    createRichContent,
+    withTitle,
+    withDescription,
+    withColor,
+    withFooter,
+    withTimestamp,
+} from '../platform/richContentBuilder';
 
 export interface ModeUiDeps {
     getCurrentCdp?: () => CdpService | null;
+}
+
+/**
+ * Build a platform-agnostic MessagePayload for mode selection UI.
+ */
+export function buildModePayload(currentMode: string): MessagePayload {
+    const rc = withTimestamp(
+        withFooter(
+            withDescription(
+                withColor(
+                    withTitle(createRichContent(), 'Mode Management'),
+                    0x57F287,
+                ),
+                `**Current Mode:** ${MODE_DISPLAY_NAMES[currentMode] || currentMode}\n` +
+                `${MODE_DESCRIPTIONS[currentMode] || ''}\n\n` +
+                `**Available Modes (${AVAILABLE_MODES.length})**\n` +
+                AVAILABLE_MODES.map(m => {
+                    const icon = m === currentMode ? '[x]' : '[ ]';
+                    return `${icon} **${MODE_DISPLAY_NAMES[m] || m}** — ${MODE_DESCRIPTIONS[m] || ''}`;
+                }).join('\n'),
+            ),
+            'Select a mode from the dropdown below',
+        ),
+    );
+
+    return {
+        richContent: rc,
+        components: [
+            {
+                components: [
+                    {
+                        type: 'selectMenu' as const,
+                        customId: 'mode_select',
+                        placeholder: 'Select a mode...',
+                        options: AVAILABLE_MODES.map(m => ({
+                            label: MODE_DISPLAY_NAMES[m] || m,
+                            description: MODE_DESCRIPTIONS[m] || '',
+                            value: m,
+                            isDefault: m === currentMode,
+                        })),
+                    },
+                ],
+            },
+        ],
+    };
 }
 
 /**

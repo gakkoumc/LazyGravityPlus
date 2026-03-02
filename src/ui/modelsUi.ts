@@ -1,6 +1,15 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 
 import { CdpService } from '../services/cdpService';
+import type { MessagePayload, ButtonDef, ComponentRow } from '../platform/types';
+import {
+    createRichContent,
+    withTitle,
+    withDescription,
+    withColor,
+    withFooter,
+    withTimestamp,
+} from '../platform/richContentBuilder';
 
 export interface ModelsUiDeps {
     getCurrentCdp: () => CdpService | null;
@@ -10,6 +19,107 @@ export interface ModelsUiDeps {
 export interface ModelsUiPayload {
     embeds: EmbedBuilder[];
     components: ActionRowBuilder<ButtonBuilder>[];
+}
+
+/**
+ * Build a platform-agnostic MessagePayload for model selection UI.
+ */
+export function buildModelsPayload(
+    models: string[],
+    currentModel: string | null,
+    quotaData: any[],
+): MessagePayload | null {
+    if (models.length === 0) return null;
+
+    function formatQuota(mName: string, current: boolean) {
+        if (!mName) return `${current ? '[x]' : '[ ]'} Unknown`;
+
+        const normalize = (s: string) => s.toLowerCase().replace(/[\s\-_]/g, '');
+        const nName = normalize(mName);
+        const q = quotaData.find(q => {
+            const nLabel = normalize(q.label);
+            const nModel = normalize(q.model || '');
+            return nLabel === nName || nModel === nName
+                || nName.includes(nLabel) || nLabel.includes(nName)
+                || (nModel && (nName.includes(nModel) || nModel.includes(nName)));
+        });
+        if (!q || !q.quotaInfo) return `${current ? '[x]' : '[ ]'} ${mName}`;
+
+        const rem = q.quotaInfo.remainingFraction;
+        const resetTime = q.quotaInfo.resetTime ? new Date(q.quotaInfo.resetTime) : null;
+        const diffMs = resetTime ? resetTime.getTime() - Date.now() : 0;
+        let timeStr = 'Ready';
+        if (diffMs > 0) {
+            const mins = Math.ceil(diffMs / 60000);
+            if (mins < 60) timeStr = `${mins}m`;
+            else timeStr = `${Math.floor(mins / 60)}h ${mins % 60}m`;
+        }
+
+        if (rem !== undefined && rem !== null) {
+            const percent = Math.round(rem * 100);
+            return `${current ? '[x]' : '[ ]'} ${mName} ${percent}% (${timeStr})`;
+        }
+
+        return `${current ? '[x]' : '[ ]'} ${mName} (${timeStr})`;
+    }
+
+    const currentModelFormatted = currentModel ? formatQuota(currentModel, true) : 'Unknown';
+
+    const rc = withTimestamp(
+        withFooter(
+            withDescription(
+                withColor(
+                    withTitle(createRichContent(), 'Model Management'),
+                    0x5865F2,
+                ),
+                `**Current Model:**\n${currentModelFormatted}\n\n` +
+                `**Available Models (${models.length})**\n` +
+                models.map(m => formatQuota(m, m === currentModel)).join('\n'),
+            ),
+            'Latest quota information retrieved',
+        ),
+    );
+
+    const rows: ComponentRow[] = [];
+    let currentButtons: ButtonDef[] = [];
+
+    for (const mName of models.slice(0, 24)) {
+        if (currentButtons.length === 5) {
+            rows.push({ components: currentButtons });
+            currentButtons = [];
+        }
+        const safeName = mName.length > 80 ? mName.substring(0, 77) + '...' : mName;
+        currentButtons.push({
+            type: 'button',
+            customId: `model_btn_${mName}`,
+            label: safeName,
+            style: mName === currentModel ? 'success' : 'secondary',
+        });
+    }
+
+    if (currentButtons.length < 5) {
+        currentButtons.push({
+            type: 'button',
+            customId: 'model_refresh_btn',
+            label: 'Refresh',
+            style: 'primary',
+        });
+        rows.push({ components: currentButtons });
+    } else {
+        rows.push({ components: currentButtons });
+        if (rows.length < 5) {
+            rows.push({
+                components: [{
+                    type: 'button',
+                    customId: 'model_refresh_btn',
+                    label: 'Refresh',
+                    style: 'primary',
+                }],
+            });
+        }
+    }
+
+    return { richContent: rc, components: rows };
 }
 
 /**
