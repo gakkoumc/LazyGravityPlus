@@ -118,41 +118,59 @@ export class TelegramAdapter implements PlatformAdapter {
     // Private helpers
     // -----------------------------------------------------------------------
 
+    /**
+     * Shared handler for both text and photo messages.
+     * Wraps the Telegram message and fires onMessage.
+     */
+    private handleIncomingMessage(eventName: string, ctx: any): void {
+        if (!this.events?.onMessage) return;
+
+        try {
+            const msg: TelegramMessageLike = ctx.message ?? ctx.msg;
+            if (!msg) return;
+
+            const msgTimestampMs = msg.date ? msg.date * 1000 : 0;
+            const delayMs = msgTimestampMs ? Date.now() - msgTimestampMs : null;
+            logger.debug(
+                `[TelegramAdapter] ${eventName} received (chat=${msg.chat.id}, delay=${delayMs !== null ? `${delayMs}ms` : 'unknown'})`,
+            );
+
+            // Discard messages sent before the adapter started (stale backlog)
+            if (msgTimestampMs && msgTimestampMs < this.startedAt) {
+                logger.info(
+                    `[TelegramAdapter] Ignoring stale message (chat=${msg.chat.id}, age=${Math.round((this.startedAt - msgTimestampMs) / 1000)}s before startup)`,
+                );
+                return;
+            }
+
+            const platformMessage = wrapTelegramMessage(
+                msg,
+                this.bot.api,
+                this.bot.toInputFile,
+                this.bot.token,
+            );
+            // Fire-and-forget: do NOT await so grammY's update loop stays
+            // unblocked. This allows /stop and other commands to be received
+            // while a long-running response is being monitored.
+            // The workspace queue in telegramMessageHandler serializes
+            // actual prompt processing per workspace.
+            this.events.onMessage(platformMessage).catch((error) => {
+                this.emitError(error);
+            });
+        } catch (error) {
+            this.emitError(error);
+        }
+    }
+
     private registerHandlers(): void {
         // Text messages
         this.bot.on('message:text', async (ctx: any) => {
-            if (!this.events?.onMessage) return;
+            this.handleIncomingMessage('message:text', ctx);
+        });
 
-            try {
-                const msg: TelegramMessageLike = ctx.message ?? ctx.msg;
-                if (!msg) return;
-
-                const msgTimestampMs = msg.date ? msg.date * 1000 : 0;
-                const delayMs = msgTimestampMs ? Date.now() - msgTimestampMs : null;
-                logger.debug(
-                    `[TelegramAdapter] message:text received (chat=${msg.chat.id}, delay=${delayMs !== null ? `${delayMs}ms` : 'unknown'})`,
-                );
-
-                // Discard messages sent before the adapter started (stale backlog)
-                if (msgTimestampMs && msgTimestampMs < this.startedAt) {
-                    logger.info(
-                        `[TelegramAdapter] Ignoring stale message (chat=${msg.chat.id}, age=${Math.round((this.startedAt - msgTimestampMs) / 1000)}s before startup)`,
-                    );
-                    return;
-                }
-
-                const platformMessage = wrapTelegramMessage(msg, this.bot.api, this.bot.toInputFile);
-                // Fire-and-forget: do NOT await so grammY's update loop stays
-                // unblocked. This allows /stop and other commands to be received
-                // while a long-running response is being monitored.
-                // The workspace queue in telegramMessageHandler serializes
-                // actual prompt processing per workspace.
-                this.events.onMessage(platformMessage).catch((error) => {
-                    this.emitError(error);
-                });
-            } catch (error) {
-                this.emitError(error);
-            }
+        // Photo messages
+        this.bot.on('message:photo', async (ctx: any) => {
+            this.handleIncomingMessage('message:photo', ctx);
         });
 
         // Callback queries (button presses and select menu selections)

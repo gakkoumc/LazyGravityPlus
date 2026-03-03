@@ -23,6 +23,9 @@ import type { ModeService } from '../services/modeService';
 import type { ModelService } from '../services/modelService';
 import { applyDefaultModel } from '../services/defaultModelApplicator';
 import { logger } from '../utils/logger';
+import { downloadTelegramPhotos } from '../utils/telegramImageHandler';
+import { cleanupInboundImageAttachments } from '../utils/imageHandler';
+import type { InboundImageAttachment } from '../utils/imageHandler';
 import type { ExtractionMode } from '../utils/config';
 
 export interface TelegramMessageHandlerDeps {
@@ -37,6 +40,10 @@ export interface TelegramMessageHandlerDeps {
     /** Shared map of active ResponseMonitors keyed by project name.
      *  Used by /stop to halt monitoring and prevent stale re-sends. */
     readonly activeMonitors?: Map<string, ResponseMonitor>;
+    /** Bot token for downloading Telegram file attachments. */
+    readonly botToken?: string;
+    /** Bot API object for getFile calls. */
+    readonly botApi?: import('../platform/telegram/wrappers').TelegramBotLike['api'];
 }
 
 /**
@@ -66,9 +73,12 @@ export function createTelegramMessageHandler(deps: TelegramMessageHandlerDeps) {
     return async (message: PlatformMessage): Promise<void> => {
         const handlerEntryTime = Date.now();
         const chatId = message.channel.id;
+        const hasImageAttachments = message.attachments.length > 0
+            && message.attachments.some((att) => (att.contentType || '').startsWith('image/'));
         const promptText = message.content.trim();
 
-        if (!promptText) return;
+        // Allow through if there's text OR image attachments
+        if (!promptText && !hasImageAttachments) return;
 
         logger.debug(`[TelegramHandler] handler entered (chat=${chatId}, msgTime=${message.createdAt.toISOString()}, handlerDelay=${handlerEntryTime - message.createdAt.getTime()}ms)`);
 
@@ -171,9 +181,55 @@ export function createTelegramMessageHandler(deps: TelegramMessageHandlerDeps) {
             // Acknowledge receipt
             await message.react('\u{1F440}').catch(() => {});
 
-            // Inject prompt into Antigravity
-            logger.prompt(promptText);
-            const injectResult = await cdp.injectMessage(promptText);
+            // Download image attachments if present
+            let inboundImages: InboundImageAttachment[] = [];
+            if (hasImageAttachments && deps.botToken && deps.botApi) {
+                try {
+                    inboundImages = await downloadTelegramPhotos(
+                        message.attachments,
+                        deps.botToken,
+                        deps.botApi,
+                    );
+                } catch (err: any) {
+                    logger.warn('[TelegramHandler] Image download failed:', err?.message || err);
+                }
+
+                if (hasImageAttachments && inboundImages.length === 0) {
+                    await message.reply({
+                        text: 'Failed to retrieve attached images. Please wait and try again.',
+                    }).catch(logger.error);
+                    return;
+                }
+            }
+
+            // Determine the prompt text — use default for image-only messages
+            const effectivePrompt = promptText || 'Please review the attached images and respond accordingly.';
+
+            // Inject prompt (with or without images) into Antigravity
+            logger.prompt(effectivePrompt);
+            let injectResult;
+            try {
+                if (inboundImages.length > 0) {
+                    injectResult = await cdp.injectMessageWithImageFiles(
+                        effectivePrompt,
+                        inboundImages.map((img) => img.localPath),
+                    );
+
+                    if (!injectResult.ok) {
+                        // Fallback: send text-only with image reference
+                        logger.warn('[TelegramHandler] Image injection failed, falling back to text-only');
+                        injectResult = await cdp.injectMessage(effectivePrompt);
+                    }
+                } else {
+                    injectResult = await cdp.injectMessage(effectivePrompt);
+                }
+            } finally {
+                // Cleanup temp files regardless of outcome
+                if (inboundImages.length > 0) {
+                    await cleanupInboundImageAttachments(inboundImages).catch(() => {});
+                }
+            }
+
             if (!injectResult.ok) {
                 await message.reply({
                     text: `Failed to send message: ${injectResult.error}`,

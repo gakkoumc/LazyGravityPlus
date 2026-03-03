@@ -11,6 +11,7 @@ import type {
     PlatformChannel,
     PlatformMessage,
     PlatformSentMessage,
+    PlatformAttachment,
     PlatformButtonInteraction,
     MessagePayload,
     FileAttachment,
@@ -25,6 +26,8 @@ import { richContentToHtml, markdownToTelegramHtml } from './telegramFormatter';
 // ---------------------------------------------------------------------------
 
 export interface TelegramBotLike {
+    /** Bot token — needed to construct file download URLs. */
+    token?: string;
     start(): void | Promise<void>;
     stop(): void;
     on(event: string, handler: (...args: any[]) => any): void;
@@ -38,6 +41,7 @@ export interface TelegramBotLike {
         setMyCommands?(commands: readonly { command: string; description: string }[]): Promise<any>;
         sendPhoto?(chatId: number | string, photo: any, options?: any): Promise<any>;
         sendDocument?(chatId: number | string, document: any, options?: any): Promise<any>;
+        getFile?(file_id: string): Promise<{ file_id: string; file_path?: string }>;
     };
     /**
      * Convert a Buffer to a platform-specific input file object.
@@ -55,11 +59,23 @@ export interface TelegramFrom {
     is_bot: boolean;
 }
 
+export interface TelegramPhotoSize {
+    file_id: string;
+    file_unique_id: string;
+    width: number;
+    height: number;
+    file_size?: number;
+}
+
 export interface TelegramMessageLike {
     message_id: number;
     from?: TelegramFrom;
     chat: { id: number; title?: string; type: string };
     text?: string;
+    /** Photo messages store user text in caption, not text. */
+    caption?: string;
+    /** Array of photo sizes; last element is the largest. */
+    photo?: TelegramPhotoSize[];
     date: number;
 }
 
@@ -277,11 +293,40 @@ export function wrapTelegramChannel(
     };
 }
 
+/**
+ * Build PlatformAttachment[] from a Telegram photo message.
+ * Uses the largest photo size (last in the array) and constructs
+ * the download URL from the bot token and file_id.
+ */
+function buildPhotoAttachments(
+    photo: TelegramPhotoSize[],
+    botToken?: string,
+): PlatformAttachment[] {
+    if (photo.length === 0) return [];
+
+    // Telegram sends multiple sizes; last is the largest
+    const largest = photo[photo.length - 1];
+
+    // URL is constructed later during download via getFile API.
+    // Store file_id as the URL so the download utility can resolve it.
+    const url = botToken
+        ? `telegram-file://${largest.file_id}`
+        : `telegram-file://${largest.file_id}`;
+
+    return [{
+        name: `photo-${largest.file_unique_id}.jpg`,
+        contentType: 'image/jpeg',
+        url,
+        size: largest.file_size ?? 0,
+    }];
+}
+
 /** Wrap a Telegram message as a PlatformMessage. */
 export function wrapTelegramMessage(
     msg: TelegramMessageLike,
     api: TelegramBotLike['api'],
     toInputFile?: TelegramBotLike['toInputFile'],
+    botToken?: string,
 ): PlatformMessage {
     const author = msg.from
         ? wrapTelegramUser(msg.from)
@@ -295,13 +340,19 @@ export function wrapTelegramMessage(
 
     const channel = wrapTelegramChannel(api, msg.chat.id, toInputFile);
 
+    // Photo messages: use caption as content, build attachments from photo array
+    const content = msg.text ?? msg.caption ?? '';
+    const attachments: readonly PlatformAttachment[] = msg.photo
+        ? buildPhotoAttachments(msg.photo, botToken)
+        : [];
+
     return {
         id: String(msg.message_id),
         platform: 'telegram',
-        content: msg.text ?? '',
+        content,
         author,
         channel,
-        attachments: [],
+        attachments,
         createdAt: new Date(msg.date * 1000),
         async react(emoji: string): Promise<void> {
             // Telegram Bot API 7.0+ setMessageReaction — limited to 79 emoji.

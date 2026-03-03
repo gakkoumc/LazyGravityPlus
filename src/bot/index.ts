@@ -1205,6 +1205,8 @@ export const startBot = async (cliLogLevel?: LogLevel) => {
                 templateRepo,
                 fetchQuota: () => bridge.quota.fetchQuota(),
                 activeMonitors,
+                botToken: config.telegramToken,
+                botApi: telegramBot.api as any,
             });
 
             // Compose select handlers: project select + mode select
