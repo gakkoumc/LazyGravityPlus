@@ -80,44 +80,31 @@ export function buildModelsPayload(
         ),
     );
 
+    // Use 1 button per row so model names are fully readable on Telegram.
+    // Telegram inline keyboard buttons are narrow; 5-per-row truncates names.
     const rows: ComponentRow[] = [];
-    let currentButtons: ButtonDef[] = [];
 
     for (const mName of models.slice(0, 24)) {
-        if (currentButtons.length === 5) {
-            rows.push({ components: currentButtons });
-            currentButtons = [];
-        }
         const safeName = mName.length > 80 ? mName.substring(0, 77) + '...' : mName;
-        currentButtons.push({
-            type: 'button',
-            customId: `model_btn_${mName}`,
-            label: safeName,
-            style: mName === currentModel ? 'success' : 'secondary',
+        const prefix = mName === currentModel ? '✓ ' : '';
+        rows.push({
+            components: [{
+                type: 'button',
+                customId: `model_btn_${mName}`,
+                label: `${prefix}${safeName}`,
+                style: mName === currentModel ? 'success' : 'secondary',
+            }],
         });
     }
 
-    if (currentButtons.length < 5) {
-        currentButtons.push({
+    rows.push({
+        components: [{
             type: 'button',
             customId: 'model_refresh_btn',
             label: 'Refresh',
             style: 'primary',
-        });
-        rows.push({ components: currentButtons });
-    } else {
-        rows.push({ components: currentButtons });
-        if (rows.length < 5) {
-            rows.push({
-                components: [{
-                    type: 'button',
-                    customId: 'model_refresh_btn',
-                    label: 'Refresh',
-                    style: 'primary',
-                }],
-            });
-        }
-    }
+        }],
+    });
 
     return { richContent: rc, components: rows };
 }

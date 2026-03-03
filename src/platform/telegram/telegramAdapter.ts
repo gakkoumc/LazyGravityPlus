@@ -92,7 +92,7 @@ export class TelegramAdapter implements PlatformAdapter {
             const chat = await this.bot.api.getChat(chatId);
             if (!chat) return null;
 
-            const channel = wrapTelegramChannel(this.bot.api, chatId);
+            const channel = wrapTelegramChannel(this.bot.api, chatId, this.bot.toInputFile);
             // Enrich with name from the fetched chat data
             return {
                 ...channel,
@@ -129,7 +129,7 @@ export class TelegramAdapter implements PlatformAdapter {
                     `[TelegramAdapter] message:text received (chat=${msg.chat.id}, delay=${delayMs !== null ? `${delayMs}ms` : 'unknown'})`,
                 );
 
-                const platformMessage = wrapTelegramMessage(msg, this.bot.api);
+                const platformMessage = wrapTelegramMessage(msg, this.bot.api, this.bot.toInputFile);
                 await this.events.onMessage(platformMessage);
             } catch (error) {
                 this.emitError(error);

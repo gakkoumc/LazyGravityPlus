@@ -53,7 +53,7 @@ describe('createModeSelectAction', () => {
         expect(action.match('other_select')).toBe(false);
     });
 
-    it('sets mode via modeService and updates UI', async () => {
+    it('sets mode and warns when CDP is not connected', async () => {
         (getCurrentCdp as jest.Mock).mockReturnValue(null);
         const action = createModeSelectAction({ bridge, modeService });
         const interaction = createMockInteraction();
@@ -64,7 +64,12 @@ describe('createModeSelectAction', () => {
         expect(modeService.setMode).toHaveBeenCalledWith('plan');
         expect(buildModePayload).toHaveBeenCalled();
         expect(interaction.update).toHaveBeenCalled();
-        expect(interaction.followUp).toHaveBeenCalled();
+        // Should include warning about no CDP connection
+        expect(interaction.followUp).toHaveBeenCalledWith(
+            expect.objectContaining({
+                text: expect.stringContaining('Not connected to Antigravity'),
+            }),
+        );
     });
 
     it('syncs mode to CDP when available', async () => {
@@ -76,5 +81,26 @@ describe('createModeSelectAction', () => {
         await action.execute(interaction as any, ['plan']);
 
         expect(mockCdp.setUiMode).toHaveBeenCalledWith('plan');
+        // No warning when CDP sync succeeds
+        expect(interaction.followUp).toHaveBeenCalledWith(
+            expect.objectContaining({
+                text: expect.not.stringContaining('Antigravity sync failed'),
+            }),
+        );
+    });
+
+    it('warns when CDP sync fails', async () => {
+        const mockCdp = { setUiMode: jest.fn().mockResolvedValue({ ok: false, error: 'timeout' }) };
+        (getCurrentCdp as jest.Mock).mockReturnValue(mockCdp);
+        const action = createModeSelectAction({ bridge, modeService });
+        const interaction = createMockInteraction();
+
+        await action.execute(interaction as any, ['plan']);
+
+        expect(interaction.followUp).toHaveBeenCalledWith(
+            expect.objectContaining({
+                text: expect.stringContaining('Antigravity sync failed'),
+            }),
+        );
     });
 });

@@ -87,7 +87,7 @@ import { createInteractionCreateHandler } from '../events/interactionCreateHandl
 import { createMessageCreateHandler } from '../events/messageCreateHandler';
 
 // Telegram platform support
-import { Bot } from 'grammy';
+import { Bot, InputFile } from 'grammy';
 import { TelegramAdapter } from '../platform/telegram/telegramAdapter';
 import { TelegramBindingRepository } from '../database/telegramBindingRepository';
 import { createTelegramMessageHandler } from './telegramMessageHandler';
@@ -1157,6 +1157,8 @@ export const startBot = async (cliLogLevel?: LogLevel) => {
     if (config.platforms.includes('telegram') && config.telegramToken) {
         try {
             const telegramBot = new Bot(config.telegramToken);
+            // Attach toInputFile so wrappers can convert Buffer to grammY InputFile
+            (telegramBot as any).toInputFile = (data: Buffer, filename?: string) => new InputFile(data, filename);
             // Retry getMe() up to 3 times to handle transient network failures
             const botInfo = await (async () => {
                 for (let attempt = 1; attempt <= 3; attempt++) {

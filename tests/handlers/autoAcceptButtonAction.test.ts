@@ -62,7 +62,11 @@ describe('createAutoAcceptButtonAction', () => {
         expect(action.match('model_btn_test')).toBeNull();
     });
 
-    it('enables auto-accept and refreshes UI', async () => {
+    it('enables auto-accept and refreshes UI when state changed', async () => {
+        autoAcceptService.handle.mockReturnValue({
+            success: true, enabled: true, changed: true,
+            message: 'Auto-accept mode turned ON.',
+        });
         const action = createAutoAcceptButtonAction({ autoAcceptService });
         const interaction = createMockInteraction('autoaccept_btn_on');
 
@@ -72,6 +76,25 @@ describe('createAutoAcceptButtonAction', () => {
         expect(interaction.deferUpdate).toHaveBeenCalled();
         expect(interaction.update).toHaveBeenCalled();
         expect(interaction.followUp).toHaveBeenCalled();
+    });
+
+    it('skips UI update when toggling to same state', async () => {
+        autoAcceptService.handle.mockReturnValue({
+            success: true, enabled: false, changed: false,
+            message: 'Auto-accept mode is already OFF.',
+        });
+        const action = createAutoAcceptButtonAction({ autoAcceptService });
+        const interaction = createMockInteraction('autoaccept_btn_off');
+
+        await action.execute(interaction as any, { action: 'off' });
+
+        expect(autoAcceptService.handle).toHaveBeenCalledWith('off');
+        expect(interaction.update).not.toHaveBeenCalled();
+        expect(interaction.followUp).toHaveBeenCalledWith(
+            expect.objectContaining({
+                text: expect.stringContaining('already OFF'),
+            }),
+        );
     });
 
     it('refreshes UI without toggling on refresh action', async () => {

@@ -39,6 +39,12 @@ export interface TelegramBotLike {
         sendPhoto?(chatId: number | string, photo: any, options?: any): Promise<any>;
         sendDocument?(chatId: number | string, document: any, options?: any): Promise<any>;
     };
+    /**
+     * Convert a Buffer to a platform-specific input file object.
+     * For grammY this wraps Buffer in InputFile; set this when creating the bot.
+     * If not provided, raw Buffer is passed through (works for test mocks).
+     */
+    toInputFile?: (data: Buffer, filename?: string) => unknown;
 }
 
 export interface TelegramFrom {
@@ -200,6 +206,9 @@ export function wrapTelegramUser(from: TelegramFrom): PlatformUser {
 /**
  * Try to send a file attachment via Telegram photo/document API.
  * Returns the sent message, or null if file sending is not available.
+ *
+ * @param toInputFile - Optional converter that wraps Buffer for the Telegram API.
+ *   grammY requires Buffer wrapped in InputFile; pass `bot.toInputFile` here.
  */
 async function trySendFile(
     api: TelegramBotLike['api'],
@@ -207,12 +216,14 @@ async function trySendFile(
     file: FileAttachment,
     caption: string | undefined,
     extraOptions?: Record<string, unknown>,
+    toInputFile?: TelegramBotLike['toInputFile'],
 ): Promise<any | null> {
     const isImage = file.contentType?.startsWith('image/') || file.name.match(/\.(png|jpe?g|gif|webp)$/i);
+    // grammY requires Buffer wrapped in InputFile; use toInputFile if available.
+    const inputFile = toInputFile ? toInputFile(file.data, file.name) : file.data;
 
     if (isImage && api.sendPhoto) {
-        // grammY accepts InputFile, Buffer, or Uint8Array
-        return api.sendPhoto(chatId, file.data, {
+        return api.sendPhoto(chatId, inputFile, {
             caption,
             parse_mode: caption ? 'HTML' : undefined,
             ...extraOptions,
@@ -220,7 +231,7 @@ async function trySendFile(
     }
 
     if (api.sendDocument) {
-        return api.sendDocument(chatId, file.data, {
+        return api.sendDocument(chatId, inputFile, {
             caption,
             parse_mode: caption ? 'HTML' : undefined,
             ...extraOptions,
@@ -234,6 +245,7 @@ async function trySendFile(
 export function wrapTelegramChannel(
     api: TelegramBotLike['api'],
     chatId: number | string,
+    toInputFile?: TelegramBotLike['toInputFile'],
 ): PlatformChannel {
     const chatIdStr = String(chatId);
 
@@ -250,7 +262,7 @@ export function wrapTelegramChannel(
                     : null;
                 const caption = opts?.text;
 
-                const sent = await trySendFile(api, chatId, file, caption);
+                const sent = await trySendFile(api, chatId, file, caption, undefined, toInputFile);
                 if (sent) {
                     return wrapTelegramSentMessage(sent, api, chatId);
                 }
@@ -269,6 +281,7 @@ export function wrapTelegramChannel(
 export function wrapTelegramMessage(
     msg: TelegramMessageLike,
     api: TelegramBotLike['api'],
+    toInputFile?: TelegramBotLike['toInputFile'],
 ): PlatformMessage {
     const author = msg.from
         ? wrapTelegramUser(msg.from)
@@ -280,7 +293,7 @@ export function wrapTelegramMessage(
               isBot: false,
           };
 
-    const channel = wrapTelegramChannel(api, msg.chat.id);
+    const channel = wrapTelegramChannel(api, msg.chat.id, toInputFile);
 
     return {
         id: String(msg.message_id),
@@ -316,6 +329,7 @@ export function wrapTelegramMessage(
                     file,
                     caption,
                     { reply_to_message_id: msg.message_id },
+                    toInputFile,
                 );
                 if (sent) {
                     return wrapTelegramSentMessage(sent, api, msg.chat.id);

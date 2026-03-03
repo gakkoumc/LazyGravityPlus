@@ -44,11 +44,15 @@ export function createModeSelectAction(deps: ModeSelectActionDeps): SelectAction
 
             // Sync to Antigravity UI
             const cdp = getCurrentCdp(deps.bridge);
+            let syncWarning = '';
             if (cdp) {
                 const res = await cdp.setUiMode(selectedMode);
                 if (!res.ok) {
                     logger.warn(`[ModeSelect] UI mode switch failed: ${res.error}`);
+                    syncWarning = '\n⚠️ Antigravity sync failed — mode set locally only.';
                 }
+            } else {
+                syncWarning = '\n⚠️ Not connected to Antigravity — mode set locally only.';
             }
 
             // Refresh the mode UI in the original message
@@ -57,7 +61,9 @@ export function createModeSelectAction(deps: ModeSelectActionDeps): SelectAction
 
             // Confirmation
             const displayName = MODE_DISPLAY_NAMES[selectedMode] || selectedMode;
-            await interaction.followUp({ text: `Mode changed to ${displayName}.` }).catch(() => {});
+            await interaction.followUp({
+                text: `Mode changed to ${displayName}.${syncWarning}`,
+            }).catch(() => {});
         },
     };
 }

@@ -35,13 +35,16 @@ export function createAutoAcceptButtonAction(deps: AutoAcceptButtonActionDeps): 
             if (params.action === 'on' || params.action === 'off') {
                 const result = deps.autoAcceptService.handle(params.action);
 
-                // Refresh UI
-                const payload = buildAutoAcceptPayload(deps.autoAcceptService.isEnabled());
-                await interaction.update(payload);
+                // Only update UI if the state actually changed to avoid
+                // Telegram "message is not modified" error.
+                if (result.changed) {
+                    const payload = buildAutoAcceptPayload(deps.autoAcceptService.isEnabled());
+                    await interaction.update(payload);
+                }
 
                 await interaction.followUp({ text: result.message }).catch(() => {});
             } else {
-                // refresh
+                // refresh — always update to show latest state
                 const payload = buildAutoAcceptPayload(deps.autoAcceptService.isEnabled());
                 await interaction.update(payload);
             }
