@@ -178,7 +178,7 @@ describe('handleTelegramCommand — /status', () => {
         const text = message.reply.mock.calls[0][0].text;
         expect(text).toContain('Not connected');
         expect(text).toContain('fast');
-        expect(text).toContain('Active workspaces: 0');
+        expect(text).toContain('Active connections: none');
     });
 
     it('shows connected workspace names', async () => {
@@ -190,9 +190,8 @@ describe('handleTelegramCommand — /status', () => {
         await handleTelegramCommand({ bridge, modeService }, message as any, { command: 'status', args: '' });
 
         const text = message.reply.mock.calls[0][0].text;
-        expect(text).toContain('Connected (DemoLG, TestProject)');
+        expect(text).toContain('DemoLG, TestProject');
         expect(text).toContain('plan');
-        expect(text).toContain('Active workspaces: 2');
     });
 
     it('shows "unknown" mode when modeService is not provided', async () => {
@@ -203,6 +202,32 @@ describe('handleTelegramCommand — /status', () => {
 
         const text = message.reply.mock.calls[0][0].text;
         expect(text).toContain('unknown');
+    });
+
+    it('shows bound project for current chat', async () => {
+        const message = createMockMessage();
+        const bridge = createMockBridge();
+        const telegramBindingRepo = {
+            findByChatId: jest.fn().mockReturnValue({ chatId: 'chat-123', workspacePath: 'MyProject' }),
+        } as any;
+
+        await handleTelegramCommand({ bridge, telegramBindingRepo }, message as any, { command: 'status', args: '' });
+
+        const text = message.reply.mock.calls[0][0].text;
+        expect(text).toContain('MyProject');
+    });
+
+    it('shows "(none)" when no project is bound', async () => {
+        const message = createMockMessage();
+        const bridge = createMockBridge();
+        const telegramBindingRepo = {
+            findByChatId: jest.fn().mockReturnValue(undefined),
+        } as any;
+
+        await handleTelegramCommand({ bridge, telegramBindingRepo }, message as any, { command: 'status', args: '' });
+
+        const text = message.reply.mock.calls[0][0].text;
+        expect(text).toContain('(none)');
     });
 });
 

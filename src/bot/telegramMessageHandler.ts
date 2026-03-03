@@ -21,12 +21,14 @@ import { parseTelegramProjectCommand, handleTelegramProjectCommand } from './tel
 import { parseTelegramCommand, handleTelegramCommand } from './telegramCommands';
 import type { ModeService } from '../services/modeService';
 import { logger } from '../utils/logger';
+import type { ExtractionMode } from '../utils/config';
 
 export interface TelegramMessageHandlerDeps {
     readonly bridge: CdpBridge;
     readonly telegramBindingRepo: TelegramBindingRepository;
     readonly workspaceService?: WorkspaceService;
     readonly modeService?: ModeService;
+    readonly extractionMode?: ExtractionMode;
 }
 
 /**
@@ -66,7 +68,7 @@ export function createTelegramMessageHandler(deps: TelegramMessageHandlerDeps) {
         const cmd = parseTelegramCommand(promptText);
         if (cmd) {
             await handleTelegramCommand(
-                { bridge: deps.bridge, modeService: deps.modeService },
+                { bridge: deps.bridge, modeService: deps.modeService, telegramBindingRepo: deps.telegramBindingRepo },
                 message,
                 cmd,
             );
@@ -165,6 +167,7 @@ export function createTelegramMessageHandler(deps: TelegramMessageHandlerDeps) {
                     pollIntervalMs: 2000,
                     maxDurationMs: TIMEOUT_MS,
                     stopGoneConfirmCount: 3,
+                    extractionMode: deps.extractionMode,
 
                     onProcessLog: (logText) => {
                         if (logText && logText.trim().length > 0) {

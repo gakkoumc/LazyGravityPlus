@@ -14,6 +14,7 @@ import Database from 'better-sqlite3';
 import { wrapDiscordChannel } from '../platform/discord/wrappers';
 import type { PlatformType } from '../platform/types';
 import { loadConfig, resolveResponseDeliveryMode } from '../utils/config';
+import type { ExtractionMode } from '../utils/config';
 import { parseMessageContent } from '../commands/messageParser';
 import { SlashCommandHandler } from '../commands/slashCommandHandler';
 import { registerSlashCommands } from '../commands/registerSlashCommands';
@@ -171,6 +172,7 @@ async function sendPromptToAntigravity(
         titleGenerator: TitleGeneratorService;
         userPrefRepo?: UserPreferenceRepository;
         onFullCompletion?: () => void;
+        extractionMode?: ExtractionMode;
     }
 ): Promise<void> {
     // Completion signal — called exactly once when the entire prompt lifecycle ends
@@ -591,6 +593,7 @@ async function sendPromptToAntigravity(
             pollIntervalMs: 2000,
             maxDurationMs: 300000,
             stopGoneConfirmCount: 3,
+            extractionMode: options?.extractionMode,
 
             onPhaseChange: (_phase, _text) => {
                 // Phase transitions are already logged inside ResponseMonitor.setPhase()
@@ -932,7 +935,7 @@ export const startBot = async (cliLogLevel?: LogLevel) => {
         ]
     });
 
-    const joinHandler = new JoinCommandHandler(chatSessionService, chatSessionRepo, workspaceBindingRepo, channelManager, bridge.pool, workspaceService, client);
+    const joinHandler = new JoinCommandHandler(chatSessionService, chatSessionRepo, workspaceBindingRepo, channelManager, bridge.pool, workspaceService, client, config.extractionMode);
 
     client.once(Events.ClientReady, async (readyClient) => {
         logger.info(`Ready! Logged in as ${readyClient.user.tag} | extractionMode=${config.extractionMode}`);
@@ -1100,6 +1103,7 @@ export const startBot = async (cliLogLevel?: LogLevel) => {
                         channelManager,
                         titleGenerator,
                         userPrefRepo,
+                        extractionMode: config.extractionMode,
                     },
                 });
             }
@@ -1170,6 +1174,7 @@ export const startBot = async (cliLogLevel?: LogLevel) => {
                 telegramBindingRepo,
                 workspaceService,
                 modeService,
+                extractionMode: config.extractionMode,
             });
 
             const telegramSelectHandler = createTelegramSelectHandler({

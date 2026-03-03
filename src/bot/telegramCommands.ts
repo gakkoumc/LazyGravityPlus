@@ -15,6 +15,7 @@ import type { CdpBridge } from '../services/cdpBridgeManager';
 import { getCurrentCdp } from '../services/cdpBridgeManager';
 import { RESPONSE_SELECTORS } from '../services/responseMonitor';
 import type { ModeService } from '../services/modeService';
+import type { TelegramBindingRepository } from '../database/telegramBindingRepository';
 import { logger } from '../utils/logger';
 
 // ---------------------------------------------------------------------------
@@ -66,6 +67,7 @@ export function parseTelegramCommand(text: string): ParsedTelegramCommand | null
 export interface TelegramCommandDeps {
     readonly bridge: CdpBridge;
     readonly modeService?: ModeService;
+    readonly telegramBindingRepo?: TelegramBindingRepository;
 }
 
 // ---------------------------------------------------------------------------
@@ -140,24 +142,34 @@ async function handleHelp(message: PlatformMessage): Promise<void> {
 }
 
 async function handleStatus(deps: TelegramCommandDeps, message: PlatformMessage): Promise<void> {
+    const chatId = message.channel.id;
+
+    // Current chat binding
+    const binding = deps.telegramBindingRepo?.findByChatId(chatId);
+    const boundProject = binding?.workspacePath ?? '(none)';
+
+    // CDP connection status for this chat's project
     const activeWorkspaces = deps.bridge.pool.getActiveWorkspaceNames();
-    const cdpStatus = activeWorkspaces.length > 0
-        ? `Connected (${activeWorkspaces.join(', ')})`
-        : 'Not connected';
+    const projectConnected = binding
+        ? activeWorkspaces.some((name) => binding.workspacePath.includes(name) || name.includes(binding.workspacePath))
+        : false;
 
     const mode = deps.modeService
         ? deps.modeService.getCurrentMode()
         : 'unknown';
 
-    const text = [
+    const lines = [
         '<b>Bot Status</b>',
         '',
-        `CDP: ${cdpStatus}`,
+        `<b>This chat:</b>`,
+        `  Project: ${boundProject}`,
+        `  CDP: ${projectConnected ? 'Connected' : 'Not connected'}`,
+        '',
         `Mode: ${mode}`,
-        `Active workspaces: ${activeWorkspaces.length}`,
-    ].join('\n');
+        `Active connections: ${activeWorkspaces.length > 0 ? activeWorkspaces.join(', ') : 'none'}`,
+    ];
 
-    await message.reply({ text }).catch(logger.error);
+    await message.reply({ text: lines.join('\n') }).catch(logger.error);
 }
 
 async function handleStop(deps: TelegramCommandDeps, message: PlatformMessage): Promise<void> {

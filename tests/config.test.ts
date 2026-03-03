@@ -27,12 +27,14 @@ describe('Config', () => {
 
     it('throws an error if DISCORD_BOT_TOKEN is missing', () => {
         delete process.env.DISCORD_BOT_TOKEN;
+        delete process.env.PLATFORMS;
         process.env.ALLOWED_USER_IDS = '123456';
         process.env.CLIENT_ID = 'client123';
         expect(() => loadConfig()).toThrow('Missing required environment variable: DISCORD_BOT_TOKEN');
     });
 
     it('throws an error if CLIENT_ID is missing', () => {
+        delete process.env.PLATFORMS;
         process.env.DISCORD_BOT_TOKEN = 'token';
         process.env.ALLOWED_USER_IDS = '123456';
         delete process.env.CLIENT_ID;
@@ -40,6 +42,7 @@ describe('Config', () => {
     });
 
     it('throws an error if ALLOWED_USER_IDS is missing', () => {
+        delete process.env.PLATFORMS;
         process.env.DISCORD_BOT_TOKEN = 'token';
         process.env.CLIENT_ID = 'client123';
         delete process.env.ALLOWED_USER_IDS;
@@ -47,6 +50,7 @@ describe('Config', () => {
     });
 
     it('returns valid config if all required variables are set', () => {
+        delete process.env.PLATFORMS;
         process.env.DISCORD_BOT_TOKEN = 'secret_token';
         process.env.CLIENT_ID = 'client123';
         process.env.ALLOWED_USER_IDS = 'user1,user2';
