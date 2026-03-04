@@ -478,10 +478,15 @@ export class ChatSessionService {
 
             // Step 3: Wait for panel to render (poll for content, up to 3s)
             const PANEL_READY_CHECK = `(() => {
+                const isVisible = (el) => !!el && el instanceof HTMLElement && el.offsetParent !== null;
                 const panel = document.querySelector('.antigravity-agent-side-panel');
                 if (!panel) return false;
-                const c = panel.querySelector('div[class*="overflow-auto"], div[class*="overflow-y-scroll"]');
-                return !!(c && c.querySelector('div[class*="cursor-pointer"]'));
+                const containers = Array.from(
+                    panel.querySelectorAll('div[class*="overflow-auto"], div[class*="overflow-y-scroll"]')
+                );
+                return containers.some((c) =>
+                    isVisible(c) && c.querySelector('div[class*="cursor-pointer"]')
+                );
             })()`;
             const deadline = Date.now() + 3000;
             while (Date.now() < deadline) {

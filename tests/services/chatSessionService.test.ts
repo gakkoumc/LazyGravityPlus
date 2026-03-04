@@ -286,7 +286,7 @@ describe('ChatSessionService', () => {
          */
         function classifyExpression(expression: string): string {
             if (expression.includes('data-past-conversations-toggle')) return 'findButton';
-            if (expression.includes('return !!(c && c.querySelector')) return 'panelReady';
+            if (expression.includes('containers.some')) return 'panelReady';
             if (expression.includes('Show\\s+\\d+\\s+more')) return 'showMore';
             if (expression.includes('const items = [];')) return 'scrape';
             return 'unknown';
