@@ -96,12 +96,17 @@ const SCRAPE_PAST_CONVERSATIONS_SCRIPT = `(() => {
     const isVisible = (el) => !!el && el instanceof HTMLElement && el.offsetParent !== null;
     const normalize = (text) => (text || '').trim();
 
+    // Scope to the side panel to avoid picking up file tab names
+    const panel = document.querySelector('.antigravity-agent-side-panel');
+    if (!panel) return { sessions: [] };
+
     const items = [];
     const seen = new Set();
 
-    // Find the scrollable conversation list container
-    const containers = Array.from(document.querySelectorAll('div[class*="overflow-auto"], div[class*="overflow-y-scroll"]'));
-    const container = containers.find((c) => isVisible(c) && c.querySelectorAll('div[class*="cursor-pointer"]').length > 0) || document;
+    // Find the scrollable conversation list container within the side panel
+    const containers = Array.from(panel.querySelectorAll('div[class*="overflow-auto"], div[class*="overflow-y-scroll"]'));
+    const container = containers.find((c) => isVisible(c) && c.querySelectorAll('div[class*="cursor-pointer"]').length > 0);
+    if (!container) return { sessions: [] };
 
     // Detect the "Other Conversations" section boundary.
     // Sessions below this header belong to other projects and must be excluded.
@@ -471,8 +476,19 @@ export class ChatSessionService {
             // Step 2: Click via CDP mouse events (reliable in Electron)
             await this.cdpMouseClick(cdpService, btnState.x, btnState.y);
 
-            // Step 3: Wait for panel to render
-            await new Promise((r) => setTimeout(r, 500));
+            // Step 3: Wait for panel to render (poll for content, up to 3s)
+            const PANEL_READY_CHECK = `(() => {
+                const panel = document.querySelector('.antigravity-agent-side-panel');
+                if (!panel) return false;
+                const c = panel.querySelector('div[class*="overflow-auto"], div[class*="overflow-y-scroll"]');
+                return !!(c && c.querySelector('div[class*="cursor-pointer"]'));
+            })()`;
+            const deadline = Date.now() + 3000;
+            while (Date.now() < deadline) {
+                const ready = await this.evaluateOnAnyContext(cdpService, PANEL_READY_CHECK, false);
+                if (ready) break;
+                await new Promise((r) => setTimeout(r, 200));
+            }
 
             // Step 4: Scrape sessions
             let scrapeResult = await this.evaluateOnAnyContext(
