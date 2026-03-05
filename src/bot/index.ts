@@ -1,4 +1,4 @@
-import { t } from "../utils/i18n";
+import { initI18n, t } from "../utils/i18n";
 import { logger } from '../utils/logger';
 import type { LogLevel } from '../utils/logger';
 import { logBuffer } from '../utils/logBuffer';
@@ -83,6 +83,7 @@ import { sendAutoAcceptUI } from '../ui/autoAcceptUi';
 import { sendOutputUI, OUTPUT_BTN_EMBED, OUTPUT_BTN_PLAIN } from '../ui/outputUi';
 import { handleScreenshot } from '../ui/screenshotUi';
 import { UserPreferenceRepository, OutputFormat } from '../database/userPreferenceRepository';
+import { AccountPreferenceRepository } from '../database/accountPreferenceRepository';
 import { formatAsPlainText, splitPlainText } from '../utils/plainTextFormatter';
 import { createInteractionCreateHandler } from '../events/interactionCreateHandler';
 import { createMessageCreateHandler } from '../events/messageCreateHandler';
@@ -897,6 +898,7 @@ async function sendPromptToAntigravity(
 
 export const startBot = async (cliLogLevel?: LogLevel) => {
     const config = loadConfig();
+initI18n(config.language ?? 'ja');
     logger.setLogLevel(cliLogLevel ?? config.logLevel);
 
     const dbPath = process.env.NODE_ENV === 'test' ? ':memory:' : 'antigravity.db';
@@ -905,6 +907,7 @@ export const startBot = async (cliLogLevel?: LogLevel) => {
     const modelService = new ModelService();
     const templateRepo = new TemplateRepository(db);
     const userPrefRepo = new UserPreferenceRepository(db);
+    const accountPrefRepo = new AccountPreferenceRepository(db);
 
     // Eagerly load default model from DB (single-user bot optimization)
     try {
@@ -925,7 +928,8 @@ export const startBot = async (cliLogLevel?: LogLevel) => {
     await ensureAntigravityRunning();
 
     // Initialize CDP bridge (lazy connection: pool creation only)
-    const bridge = initCdpBridge(config.autoApproveFileEdits);
+    const accountPorts = Object.fromEntries((config.antigravityAccounts ?? []).map((a) => [a.name, a.cdpPort]));
+    const bridge = initCdpBridge(config.autoApproveFileEdits, accountPorts);
 
     // Initialize CDP-dependent services (constructor CDP dependency removed)
     const chatSessionService = new ChatSessionService();
@@ -1064,6 +1068,8 @@ export const startBot = async (cliLogLevel?: LogLevel) => {
             templateRepo,
             joinHandler,
             userPrefRepo,
+            accountPrefRepo,
+            config.antigravityAccounts ?? [{ name: 'default', cdpPort: 9222 }],
         ),
         handleTemplateUse: async (interaction, templateId) => {
             const template = templateRepo.findById(templateId);
@@ -1169,6 +1175,8 @@ export const startBot = async (cliLogLevel?: LogLevel) => {
         autoRenameChannel,
         handleScreenshot,
         userPrefRepo,
+        accountPrefRepo,
+        antigravityAccounts: config.antigravityAccounts,
     }));
 
     await client.login(discordToken);
@@ -1392,6 +1400,8 @@ async function handleSlashInteraction(
     templateRepo: TemplateRepository,
     joinHandler?: JoinCommandHandler,
     userPrefRepo?: UserPreferenceRepository,
+    accountPrefRepo?: AccountPreferenceRepository,
+    antigravityAccounts: { name: string; cdpPort: number }[] = [{ name: 'default', cdpPort: 9222 }],
 ): Promise<void> {
     const commandName = interaction.commandName;
 
@@ -1421,6 +1431,7 @@ async function handleSlashInteraction(
                         '`/mode` — Display and change execution mode',
                         '`/model [name]` — Display and change LLM model',
                         '`/output [format]` — Toggle Embed / Plain Text output',
+                        '`/loop [count]` — Set deep-think loop count for this channel',
                     ].join('\n')
                 },
                 {
@@ -1440,6 +1451,7 @@ async function handleSlashInteraction(
                     name: '🔧 System', value: [
                         '`/status` — Display overall bot status',
                         '`/autoaccept` — Toggle auto-approve mode for approval dialogs via buttons',
+                        '`/account [name]` — Show/switch Antigravity account',
                         '`/logs [lines] [level]` — View recent bot logs',
                         '`/cleanup [days]` — Clean up unused channels/categories',
                         '`/help` — Show this help',
@@ -1715,9 +1727,46 @@ async function handleSlashInteraction(
             break;
         }
 
+
+        case 'loop': {
+            const requestedCount = interaction.options.getInteger('count');
+            if (!requestedCount) {
+                const current = bridge.deepThinkCountByChannel?.get(interaction.channelId) ?? 1;
+                await interaction.editReply({ content: `現在のDeepThink回数: **${current}**` });
+                break;
+            }
+            bridge.deepThinkCountByChannel?.set(interaction.channelId, requestedCount);
+            await interaction.editReply({ content: `DeepThink回数を **${requestedCount}** に設定しました。` });
+            break;
+        }
+
         case 'ping': {
             const apiLatency = interaction.client.ws.ping;
             await interaction.editReply({ content: `🏓 Pong! API Latency is **${apiLatency}ms**.` });
+            break;
+        }
+
+
+        case 'account': {
+            if (!accountPrefRepo) {
+                await interaction.editReply({ content: 'Account preference service not available.' });
+                break;
+            }
+            const requested = interaction.options.getString('name');
+            if (!requested) {
+                const current = accountPrefRepo.getAccountName(interaction.user.id) ?? 'default';
+                await interaction.editReply({ content: `現在のアカウント: **${current}**
+利用可能: ${antigravityAccounts.map((a) => a.name).join(', ')}` });
+                break;
+            }
+            const exists = antigravityAccounts.some((a) => a.name === requested);
+            if (!exists) {
+                await interaction.editReply({ content: `不明なアカウントです: **${requested}**` });
+                break;
+            }
+            accountPrefRepo.setAccountName(interaction.user.id, requested);
+            bridge.selectedAccountByChannel?.set(interaction.channelId, requested);
+            await interaction.editReply({ content: `アカウントを **${requested}** に切り替えました。` });
             break;
         }
 

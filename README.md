@@ -21,6 +21,36 @@ Send natural language instructions like "fix that bug" or "start designing the n
 https://github.com/user-attachments/assets/08eac63e-5ede-469b-ac6c-1c40ec77b0c0
 
 
+
+## Download & Install Options
+
+### 1) npm global install (recommended)
+
+```bash
+npm install -g lazy-gravity
+lazy-gravity setup
+```
+
+### 2) npx (no install)
+
+```bash
+npx lazy-gravity
+```
+
+### 3) Download source ZIP from GitHub
+
+1. Open the repository page.
+2. Click **Code** → **Download ZIP**.
+3. Extract and move to your workspace.
+4. Run:
+
+```bash
+npm install
+npm run build
+npm run start
+```
+
+
 ## Quick Setup
 
 Runtime: **Node >= 18**.
@@ -97,6 +127,8 @@ Just type in any bound channel:
 - `🔧 /status` — Show bot connection status, current mode, and active project
 - `✅ /autoaccept [on|off|status]` — Toggle auto-approval of file edit dialogs
 - `📝 /output [embed|plain]` — Toggle output format between Embed and Plain Text (plain text is easier to copy on mobile)
+- `🧠 /loop [count]` — Set deep-think refinement loop count (1-20) for this channel
+- `👤 /account [name]` — Show or switch Antigravity account
 - `📋 /logs [lines] [level]` — View recent bot logs (ephemeral)
 - `🏓 /ping` — Check bot latency
 - `🧹 /cleanup [days]` — Scan and clean up inactive session channels (default: 7 days)
@@ -180,6 +212,8 @@ DISCORD_BOT_TOKEN=your_bot_token_here
 GUILD_ID=your_guild_id_here
 ALLOWED_USER_IDS=123456789,987654321
 WORKSPACE_BASE_DIR=~/Code
+BOT_LANGUAGE=ja
+ANTIGRAVITY_ACCOUNTS=default:9222,work:9333
 # ANTIGRAVITY_PATH=/path/to/antigravity.AppImage  # Optional: For Linux users or custom installations
 ```
 
