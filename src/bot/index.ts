@@ -1732,11 +1732,11 @@ async function handleSlashInteraction(
             const requestedCount = interaction.options.getInteger('count');
             if (!requestedCount) {
                 const current = bridge.deepThinkCountByChannel?.get(interaction.channelId) ?? 1;
-                await interaction.editReply({ content: `現在のDeepThink回数: **${current}**` });
+                await interaction.editReply({ content: t('Current DeepThink loops: **${count}**', { count: current }) });
                 break;
             }
             bridge.deepThinkCountByChannel?.set(interaction.channelId, requestedCount);
-            await interaction.editReply({ content: `DeepThink回数を **${requestedCount}** に設定しました。` });
+            await interaction.editReply({ content: t('🧠 DeepThink loops set to **${count}**.', { count: requestedCount }) });
             break;
         }
 
@@ -1755,18 +1755,17 @@ async function handleSlashInteraction(
             const requested = interaction.options.getString('name');
             if (!requested) {
                 const current = accountPrefRepo.getAccountName(interaction.user.id) ?? 'default';
-                await interaction.editReply({ content: `現在のアカウント: **${current}**
-利用可能: ${antigravityAccounts.map((a) => a.name).join(', ')}` });
+                await interaction.editReply({ content: t('Current account: **${current}**\nAvailable: ${available}', { current, available: antigravityAccounts.map((a) => a.name).join(', ') }) });
                 break;
             }
             const exists = antigravityAccounts.some((a) => a.name === requested);
             if (!exists) {
-                await interaction.editReply({ content: `不明なアカウントです: **${requested}**` });
+                await interaction.editReply({ content: t('⚠️ Unknown account: **${name}**', { name: requested }) });
                 break;
             }
             accountPrefRepo.setAccountName(interaction.user.id, requested);
             bridge.selectedAccountByChannel?.set(interaction.channelId, requested);
-            await interaction.editReply({ content: `アカウントを **${requested}** に切り替えました。` });
+            await interaction.editReply({ content: t('✅ Switched account to **${name}**.', { name: requested }) });
             break;
         }
 

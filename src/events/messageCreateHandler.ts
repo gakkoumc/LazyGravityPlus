@@ -31,6 +31,7 @@ import {
     isImageAttachment as isImageAttachmentFn,
 } from '../utils/imageHandler';
 import { logger } from '../utils/logger';
+import { t } from '../utils/i18n';
 
 export interface MessageCreateHandlerDeps {
     config: { allowedUserIds: string[]; extractionMode?: import('../utils/config').ExtractionMode };
@@ -181,11 +182,11 @@ export function createMessageCreateHandler(deps: MessageCreateHandlerDeps) {
             if (parsed.commandName === 'loop') {
                 const n = Number(parsed.args?.[0] || '1');
                 if (!Number.isInteger(n) || n < 1 || n > 20) {
-                    await message.reply('⚠️ 使用方法: `/loop <1-20>`').catch(() => {});
+                    await message.reply(t('⚠️ Usage: `/loop <1-20>`')).catch(() => {});
                     return;
                 }
                 deps.bridge.deepThinkCountByChannel?.set(message.channelId, n);
-                await message.reply(`🧠 DeepThink回数を **${n}** に設定しました。`).catch(() => {});
+                await message.reply(t('🧠 DeepThink loops set to **${count}**.', { count: n })).catch(() => {});
                 return;
             }
 
@@ -194,17 +195,16 @@ export function createMessageCreateHandler(deps: MessageCreateHandlerDeps) {
                 const req = parsed.args?.[0];
                 if (!req) {
                     const current = deps.bridge.selectedAccountByChannel?.get(message.channelId) ?? deps.accountPrefRepo?.getAccountName(message.author.id) ?? 'default';
-                    await message.reply(`現在のアカウント: **${current}**
-利用可能: ${accounts.map((a) => a.name).join(', ')}`).catch(() => {});
+                    await message.reply(t('Current account: **${current}**\nAvailable: ${available}', { current, available: accounts.map((a) => a.name).join(', ') })).catch(() => {});
                     return;
                 }
                 if (!accounts.some((a) => a.name === req)) {
-                    await message.reply(`⚠️ 不明なアカウント: **${req}**`).catch(() => {});
+                    await message.reply(t('⚠️ Unknown account: **${name}**', { name: req })).catch(() => {});
                     return;
                 }
                 deps.bridge.selectedAccountByChannel?.set(message.channelId, req);
                 deps.accountPrefRepo?.setAccountName(message.author.id, req);
-                await message.reply(`✅ アカウントを **${req}** に切り替えました。`).catch(() => {});
+                await message.reply(t('✅ Switched account to **${name}**.', { name: req })).catch(() => {});
                 return;
             }
 
