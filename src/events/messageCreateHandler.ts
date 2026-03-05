@@ -31,6 +31,7 @@ import {
     isImageAttachment as isImageAttachmentFn,
 } from '../utils/imageHandler';
 import { logger } from '../utils/logger';
+import { t } from '../utils/i18n';
 
 export interface MessageCreateHandlerDeps {
     config: { allowedUserIds: string[]; extractionMode?: import('../utils/config').ExtractionMode };
@@ -182,6 +183,11 @@ export function createMessageCreateHandler(deps: MessageCreateHandlerDeps) {
             if (parsed.commandName === 'loop') {
                 const n = Number(parsed.args?.[0] || '1');
                 if (!Number.isInteger(n) || n < 1 || n > 20) {
+                    await message.reply(t('⚠️ Usage: `/loop <1-20>`')).catch(() => {});
+                    return;
+                }
+                deps.bridge.deepThinkCountByChannel?.set(message.channelId, n);
+                await message.reply(t('🧠 DeepThink loops set to **${count}**.', { count: n })).catch(() => {});
                     await message.reply('⚠️ 使用方法: `/loop <1-20>`').catch(() => {});
                     return;
                 }
@@ -195,6 +201,11 @@ export function createMessageCreateHandler(deps: MessageCreateHandlerDeps) {
                 const req = parsed.args?.[0];
                 if (!req) {
                     const current = deps.bridge.selectedAccountByChannel?.get(message.channelId) ?? deps.accountPrefRepo?.getAccountName(message.author.id) ?? 'default';
+                    await message.reply(t('Current account: **${current}**\nAvailable: ${available}', { current, available: accounts.map((a) => a.name).join(', ') })).catch(() => {});
+                    return;
+                }
+                if (!accounts.some((a) => a.name === req)) {
+                    await message.reply(t('⚠️ Unknown account: **${name}**', { name: req })).catch(() => {});
                     await message.reply(`現在のアカウント: **${current}**
 利用可能: ${accounts.map((a) => a.name).join(', ')}`).catch(() => {});
                     return;
@@ -205,6 +216,7 @@ export function createMessageCreateHandler(deps: MessageCreateHandlerDeps) {
                 }
                 deps.bridge.selectedAccountByChannel?.set(message.channelId, req);
                 deps.accountPrefRepo?.setAccountName(message.author.id, req);
+                await message.reply(t('✅ Switched account to **${name}**.', { name: req })).catch(() => {});
                 await message.reply(`✅ アカウントを **${req}** に切り替えました。`).catch(() => {});
                 return;
             }
@@ -370,6 +382,7 @@ export function createMessageCreateHandler(deps: MessageCreateHandlerDeps) {
                                     );
                                     resolve();
                                 };
+                                const loopCount = deps.bridge.deepThinkCountByChannel?.get(message.channelId) ?? 1;
                                 const loopCount = deepThinkCountByChannel.get(message.channelId) ?? 1;
                                 const effectivePrompt = loopCount > 1
                                     ? `${promptText}\n\n[DeepThink mode: perform ${loopCount} internal refinement passes before final answer.]`

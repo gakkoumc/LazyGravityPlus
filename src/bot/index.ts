@@ -928,7 +928,8 @@ initI18n(config.language ?? 'ja');
     await ensureAntigravityRunning();
 
     // Initialize CDP bridge (lazy connection: pool creation only)
-    const bridge = initCdpBridge(config.autoApproveFileEdits);
+    const accountPorts = Object.fromEntries((config.antigravityAccounts ?? []).map((a) => [a.name, a.cdpPort]));
+    const bridge = initCdpBridge(config.autoApproveFileEdits, accountPorts);
 
     // Initialize CDP-dependent services (constructor CDP dependency removed)
     const chatSessionService = new ChatSessionService();
@@ -1430,6 +1431,7 @@ async function handleSlashInteraction(
                         '`/mode` — Display and change execution mode',
                         '`/model [name]` — Display and change LLM model',
                         '`/output [format]` — Toggle Embed / Plain Text output',
+                        '`/loop [count]` — Set deep-think loop count for this channel',
                     ].join('\n')
                 },
                 {
@@ -1449,6 +1451,7 @@ async function handleSlashInteraction(
                     name: '🔧 System', value: [
                         '`/status` — Display overall bot status',
                         '`/autoaccept` — Toggle auto-approve mode for approval dialogs via buttons',
+                        '`/account [name]` — Show/switch Antigravity account',
                         '`/logs [lines] [level]` — View recent bot logs',
                         '`/cleanup [days]` — Clean up unused channels/categories',
                         '`/help` — Show this help',
@@ -1724,6 +1727,19 @@ async function handleSlashInteraction(
             break;
         }
 
+
+        case 'loop': {
+            const requestedCount = interaction.options.getInteger('count');
+            if (!requestedCount) {
+                const current = bridge.deepThinkCountByChannel?.get(interaction.channelId) ?? 1;
+                await interaction.editReply({ content: t('Current DeepThink loops: **${count}**', { count: current }) });
+                break;
+            }
+            bridge.deepThinkCountByChannel?.set(interaction.channelId, requestedCount);
+            await interaction.editReply({ content: t('🧠 DeepThink loops set to **${count}**.', { count: requestedCount }) });
+            break;
+        }
+
         case 'ping': {
             const apiLatency = interaction.client.ws.ping;
             await interaction.editReply({ content: `🏓 Pong! API Latency is **${apiLatency}ms**.` });
@@ -1739,17 +1755,20 @@ async function handleSlashInteraction(
             const requested = interaction.options.getString('name');
             if (!requested) {
                 const current = accountPrefRepo.getAccountName(interaction.user.id) ?? 'default';
+                await interaction.editReply({ content: t('Current account: **${current}**\nAvailable: ${available}', { current, available: antigravityAccounts.map((a) => a.name).join(', ') }) });
                 await interaction.editReply({ content: `現在のアカウント: **${current}**
 利用可能: ${antigravityAccounts.map((a) => a.name).join(', ')}` });
                 break;
             }
             const exists = antigravityAccounts.some((a) => a.name === requested);
             if (!exists) {
+                await interaction.editReply({ content: t('⚠️ Unknown account: **${name}**', { name: requested }) });
                 await interaction.editReply({ content: `不明なアカウントです: **${requested}**` });
                 break;
             }
             accountPrefRepo.setAccountName(interaction.user.id, requested);
             bridge.selectedAccountByChannel?.set(interaction.channelId, requested);
+            await interaction.editReply({ content: t('✅ Switched account to **${name}**.', { name: requested }) });
             await interaction.editReply({ content: `アカウントを **${requested}** に切り替えました。` });
             break;
         }
