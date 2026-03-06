@@ -94,6 +94,7 @@ export function createMessageCreateHandler(deps: MessageCreateHandlerDeps) {
     // Per-workspace prompt queue: serializes send→response cycles
     const workspaceQueues = new Map<string, Promise<void>>();
     const workspaceQueueDepths = new Map<string, number>();
+    const deepThinkCountByChannel = new Map<string, number>();
 
     function enqueueForWorkspace(
         workspacePath: string,
@@ -191,6 +192,11 @@ export function createMessageCreateHandler(deps: MessageCreateHandlerDeps) {
                 deps.bridge.deepThinkCountByChannel?.set(message.channelId, n);
                 deps.channelPrefRepo?.setDeepThinkCount(message.channelId, n);
                 await message.reply(t('🧠 DeepThink loops set to **${count}**.', { count: n })).catch(() => {});
+                    await message.reply('⚠️ 使用方法: `/loop <1-20>`').catch(() => {});
+                    return;
+                }
+                deepThinkCountByChannel.set(message.channelId, n);
+                await message.reply(`🧠 DeepThink回数を **${n}** に設定しました。`).catch(() => {});
                 return;
             }
 
@@ -209,6 +215,15 @@ export function createMessageCreateHandler(deps: MessageCreateHandlerDeps) {
                 }
                 if (!accountNames.includes(req)) {
                     await message.reply(t('⚠️ Unknown account: **${name}**', { name: req })).catch(() => {});
+                const req = parsed.args?.[0];
+                if (!req) {
+                    const current = deps.bridge.selectedAccountByChannel?.get(message.channelId) ?? deps.accountPrefRepo?.getAccountName(message.author.id) ?? 'default';
+                    await message.reply(`現在のアカウント: **${current}**
+利用可能: ${accounts.map((a) => a.name).join(', ')}`).catch(() => {});
+                    return;
+                }
+                if (!accounts.some((a) => a.name === req)) {
+                    await message.reply(`⚠️ 不明なアカウント: **${req}**`).catch(() => {});
                     return;
                 }
                 deps.bridge.selectedAccountByChannel?.set(message.channelId, req);
@@ -219,6 +234,7 @@ export function createMessageCreateHandler(deps: MessageCreateHandlerDeps) {
                     deps.bridge.pool.setPreferredAccountForWorkspace?.(channelWorkspace, req);
                 }
                 await message.reply(t('✅ Switched account to **${name}**.', { name: req })).catch(() => {});
+                await message.reply(`✅ アカウントを **${req}** に切り替えました。`).catch(() => {});
                 return;
             }
 
@@ -315,6 +331,8 @@ export function createMessageCreateHandler(deps: MessageCreateHandlerDeps) {
                                 deps.channelPrefRepo?.setAccountName(message.channelId, safeAccount);
                             }
                             const cdp = await deps.bridge.pool.getOrConnect(workspacePath, { name: safeAccount });
+                            const selectedAccount = deps.bridge.selectedAccountByChannel?.get(message.channelId) ?? deps.accountPrefRepo?.getAccountName(message.author.id) ?? 'default';
+                            const cdp = await deps.bridge.pool.getOrConnect(workspacePath, { name: selectedAccount });
                             const projectName = deps.bridge.pool.extractProjectName(workspacePath);
 
                             deps.bridge.lastActiveWorkspace = projectName;
@@ -396,6 +414,7 @@ export function createMessageCreateHandler(deps: MessageCreateHandlerDeps) {
                                 const loopCount = deps.bridge.deepThinkCountByChannel?.get(message.channelId)
                                     ?? deps.channelPrefRepo?.getDeepThinkCount(message.channelId)
                                     ?? 1;
+                                const loopCount = deepThinkCountByChannel.get(message.channelId) ?? 1;
                                 const effectivePrompt = loopCount > 1
                                     ? `${promptText}\n\n[DeepThink mode: perform ${loopCount} internal refinement passes before final answer.]`
                                     : promptText;

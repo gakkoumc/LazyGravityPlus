@@ -1795,6 +1795,19 @@ async function handleSlashInteraction(
                 bridge.pool.setPreferredAccountForWorkspace?.(channelWorkspace, requested);
             }
             await interaction.editReply({ content: t('✅ Switched account to **${name}**.', { name: requested }) });
+                const current = accountPrefRepo.getAccountName(interaction.user.id) ?? 'default';
+                await interaction.editReply({ content: `現在のアカウント: **${current}**
+利用可能: ${antigravityAccounts.map((a) => a.name).join(', ')}` });
+                break;
+            }
+            const exists = antigravityAccounts.some((a) => a.name === requested);
+            if (!exists) {
+                await interaction.editReply({ content: `不明なアカウントです: **${requested}**` });
+                break;
+            }
+            accountPrefRepo.setAccountName(interaction.user.id, requested);
+            bridge.selectedAccountByChannel?.set(interaction.channelId, requested);
+            await interaction.editReply({ content: `アカウントを **${requested}** に切り替えました。` });
             break;
         }
 
