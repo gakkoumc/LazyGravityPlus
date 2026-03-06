@@ -96,5 +96,4 @@
   "Current account: **${current}**\\nAvailable: ${available}": "Current account: **${current}**\\nAvailable: ${available}",
   "⚠️ Unknown account: **${name}**": "⚠️ Unknown account: **${name}**",
   "✅ Switched account to **${name}**.": "✅ Switched account to **${name}**."
-  "on / off (optional direct switch)": "on / off (optional direct switch)"
 }

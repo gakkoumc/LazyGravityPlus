@@ -32,6 +32,31 @@ LazyGravity Plus は、Antigravity をローカルPCで動かしつつ、Discord
 - `/status` で現在チャネルの `Account` / `DeepThink` を確認可能
 - モード・接続・ミラー状態を1画面で把握
 
+- Discord運用を最優先（Telegram はオプション扱い）
+- 実務で困るポイント（誤接続・設定の揮発）を潰す
+- チャネルごとに「どう使うか」を固定できる
+
+---
+
+## 主な強化ポイント
+
+### 1. Antigravity 複数アカウント対応
+- `ANTIGRAVITY_ACCOUNTS` で複数インスタンス（port）を定義
+- `/account [name]` でアカウント切替
+- アカウント選択は **ユーザー単位 + チャネル単位** で保持
+- ワークスペース接続時に安全なフォールバックを実施
+
+## クイックスタート
+
+### 2. DeepThink ループ
+- `/loop [count]` でチャネルごとの推論深度を設定（1〜20）
+- 設定値は永続化され、再起動後も維持
+- 複雑タスクで「1回で終わる」問題を抑制
+
+### 3. Discord 運用向け可視化
+- `/status` で現在チャネルの `Account` / `DeepThink` を確認可能
+- モード・接続・ミラー状態を1画面で把握
+
 ---
 
 ## クイックスタート
@@ -45,6 +70,10 @@ lazy-gravity open
 lazy-gravity start
 ```
 
+このレポジトリをソースから使う場合（**このページの Code ボタンで表示されるURLを使用**）:
+
+```bash
+git clone <このリポジトリのURL>
 ソースから使う場合:
 
 ```bash
@@ -55,6 +84,12 @@ cp .env.example .env
 npm run build
 npm run start
 ```
+
+> 例: GitHub 上でこのリポジトリが `https://github.com/<your-account>/LazyGravityPlus` なら、
+> `git clone https://github.com/<your-account>/LazyGravityPlus.git` を使います。
+
+---
+
 
 ---
 
