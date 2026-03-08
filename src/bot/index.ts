@@ -84,9 +84,11 @@ import { sendOutputUI, OUTPUT_BTN_EMBED, OUTPUT_BTN_PLAIN } from '../ui/outputUi
 import { handleScreenshot } from '../ui/screenshotUi';
 import { UserPreferenceRepository, OutputFormat } from '../database/userPreferenceRepository';
 import { AccountPreferenceRepository } from '../database/accountPreferenceRepository';
+import { ChannelPreferenceRepository } from '../database/channelPreferenceRepository';
 import { formatAsPlainText, splitPlainText } from '../utils/plainTextFormatter';
 import { createInteractionCreateHandler } from '../events/interactionCreateHandler';
 import { createMessageCreateHandler } from '../events/messageCreateHandler';
+import { listAccountNames, resolveValidAccountName } from '../utils/accountUtils';
 
 // Telegram platform support
 import { Bot, InputFile } from 'grammy';
@@ -908,6 +910,7 @@ initI18n(config.language ?? 'ja');
     const templateRepo = new TemplateRepository(db);
     const userPrefRepo = new UserPreferenceRepository(db);
     const accountPrefRepo = new AccountPreferenceRepository(db);
+    const channelPrefRepo = new ChannelPreferenceRepository(db);
 
     // Eagerly load default model from DB (single-user bot optimization)
     try {
@@ -1069,6 +1072,7 @@ initI18n(config.language ?? 'ja');
             joinHandler,
             userPrefRepo,
             accountPrefRepo,
+            channelPrefRepo,
             config.antigravityAccounts ?? [{ name: 'default', cdpPort: 9222 }],
         ),
         handleTemplateUse: async (interaction, templateId) => {
@@ -1176,6 +1180,7 @@ initI18n(config.language ?? 'ja');
         handleScreenshot,
         userPrefRepo,
         accountPrefRepo,
+        channelPrefRepo,
         antigravityAccounts: config.antigravityAccounts,
     }));
 
@@ -1401,6 +1406,7 @@ async function handleSlashInteraction(
     joinHandler?: JoinCommandHandler,
     userPrefRepo?: UserPreferenceRepository,
     accountPrefRepo?: AccountPreferenceRepository,
+    channelPrefRepo?: ChannelPreferenceRepository,
     antigravityAccounts: { name: string; cdpPort: number }[] = [{ name: 'default', cdpPort: 9222 }],
 ): Promise<void> {
     const commandName = interaction.commandName;
@@ -1556,11 +1562,21 @@ async function handleSlashInteraction(
                 ? `📡 ON (${mirroringWorkspaces.join(', ')})`
                 : '⚪ OFF';
 
+            const currentAccount = bridge.selectedAccountByChannel?.get(interaction.channelId)
+                ?? channelPrefRepo?.getAccountName(interaction.channelId)
+                ?? accountPrefRepo?.getAccountName(interaction.user.id)
+                ?? 'default';
+            const currentLoop = bridge.deepThinkCountByChannel?.get(interaction.channelId)
+                ?? channelPrefRepo?.getDeepThinkCount(interaction.channelId)
+                ?? 1;
+
             const statusFields = [
                 { name: 'CDP Connection', value: activeNames.length > 0 ? `🟢 ${activeNames.length} project(s) connected` : '⚪ Disconnected', inline: true },
                 { name: 'Mode', value: MODE_DISPLAY_NAMES[currentMode] || currentMode, inline: true },
                 { name: 'Auto Approve', value: autoAcceptService.isEnabled() ? '🟢 ON' : '⚪ OFF', inline: true },
                 { name: 'Mirroring', value: mirrorStatus, inline: true },
+                { name: 'Account', value: currentAccount, inline: true },
+                { name: 'DeepThink', value: `${currentLoop}`, inline: true },
             ];
 
             let statusDescription = '';
@@ -1732,10 +1748,14 @@ async function handleSlashInteraction(
             const requestedCount = interaction.options.getInteger('count');
             if (!requestedCount) {
                 const current = bridge.deepThinkCountByChannel?.get(interaction.channelId) ?? 1;
+                const current = bridge.deepThinkCountByChannel?.get(interaction.channelId)
+                    ?? channelPrefRepo?.getDeepThinkCount(interaction.channelId)
+                    ?? 1;
                 await interaction.editReply({ content: t('Current DeepThink loops: **${count}**', { count: current }) });
                 break;
             }
             bridge.deepThinkCountByChannel?.set(interaction.channelId, requestedCount);
+            channelPrefRepo?.setDeepThinkCount(interaction.channelId, requestedCount);
             await interaction.editReply({ content: t('🧠 DeepThink loops set to **${count}**.', { count: requestedCount }) });
             break;
         }
@@ -1754,6 +1774,28 @@ async function handleSlashInteraction(
             }
             const requested = interaction.options.getString('name');
             if (!requested) {
+                const current = bridge.selectedAccountByChannel?.get(interaction.channelId)
+                    ?? channelPrefRepo?.getAccountName(interaction.channelId)
+                    ?? accountPrefRepo.getAccountName(interaction.user.id)
+                    ?? 'default';
+                const names = listAccountNames(antigravityAccounts);
+                const effectiveCurrent = resolveValidAccountName(current, antigravityAccounts);
+                await interaction.editReply({ content: t('Current account: **${current}**\nAvailable: ${available}', { current: effectiveCurrent, available: names.join(', ') }) });
+                break;
+            }
+            const exists = listAccountNames(antigravityAccounts).includes(requested);
+            if (!exists) {
+                await interaction.editReply({ content: t('⚠️ Unknown account: **${name}**', { name: requested }) });
+                break;
+            }
+            accountPrefRepo.setAccountName(interaction.user.id, requested);
+            channelPrefRepo?.setAccountName(interaction.channelId, requested);
+            bridge.selectedAccountByChannel?.set(interaction.channelId, requested);
+            const channelWorkspace = wsHandler.getWorkspaceForChannel(interaction.channelId);
+            if (channelWorkspace) {
+                bridge.pool.setPreferredAccountForWorkspace?.(channelWorkspace, requested);
+            }
+            await interaction.editReply({ content: t('✅ Switched account to **${name}**.', { name: requested }) });
                 const current = accountPrefRepo.getAccountName(interaction.user.id) ?? 'default';
                 await interaction.editReply({ content: t('Current account: **${current}**\nAvailable: ${available}', { current, available: antigravityAccounts.map((a) => a.name).join(', ') }) });
                 await interaction.editReply({ content: `現在のアカウント: **${current}**

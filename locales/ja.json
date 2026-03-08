@@ -120,5 +120,4 @@
   "Current account: **${current}**\\nAvailable: ${available}": "現在のアカウント: **${current}**\\n利用可能: ${available}",
   "⚠️ Unknown account: **${name}**": "⚠️ 不明なアカウント: **${name}**",
   "✅ Switched account to **${name}**.": "✅ アカウントを **${name}** に切り替えました。"
-  "on / off (optional direct switch)": "on / off（省略可）"
 }

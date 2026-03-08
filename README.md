@@ -1,25 +1,19 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/tokyoweb3/LazyGravity/main/docs/assets/LazyGravityBanner.png" alt="LazyGravity Banner" width="100%" />
-</p>
+# LazyGravity Plus
 
-<p align="center">
-  <img src="https://img.shields.io/badge/version-0.3.0-blue?style=flat-square" alt="Version" />
-  <img src="https://img.shields.io/badge/Antigravity-1.19.5-ff6b35?style=flat-square" alt="Antigravity" />
-  <img src="https://img.shields.io/badge/node-18.x+-brightgreen?style=flat-square&logo=node.js" alt="Node.js" />
-  <img src="https://img.shields.io/badge/discord.js-14.x-5865F2?style=flat-square&logo=discord&logoColor=white" alt="discord.js" />
-  <img src="https://img.shields.io/badge/telegram-optional-26A5E4?style=flat-square&logo=telegram&logoColor=white" alt="Telegram" />
-  <img src="https://img.shields.io/badge/protocol-CDP%20%2F%20WebSocket-orange?style=flat-square" alt="CDP/WebSocket" />
-  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License" />
-</p>
+> Antigravity を **Discord から快適に遠隔操作**するために作り直した、実運用向けフォーク版。
 
-# LazyGravity
+LazyGravity Plus は、Antigravity をローカルPCで動かしつつ、Discord から安全に操作できる bot です。  
+このフォークは **Discord中心** で使う前提で、アカウント切替・DeepThink・運用性を強化しています。
 
-**LazyGravity** is a local, secure bot that lets you remotely operate [Antigravity](https://antigravity.dev) on your home PC — from your smartphone, anywhere. Supports **Discord** and **Telegram** (optional).
+---
 
-Send natural language instructions like "fix that bug" or "start designing the new feature" from your phone. Antigravity executes them locally on your home PC using its full resources, and reports results back to your chat platform.
+## このフォークの方針
 
-https://github.com/user-attachments/assets/08eac63e-5ede-469b-ac6c-1c40ec77b0c0
+- Discord運用を最優先（Telegram はオプション扱い）
+- 実務で困るポイント（誤接続・設定の揮発）を潰す
+- チャネルごとに「どう使うか」を固定できる
 
+---
 
 
 ## Download & Install Options
@@ -52,28 +46,36 @@ npm run start
 
 
 ## Quick Setup
+## 主な強化ポイント
 
-Runtime: **Node >= 18**.
+### 1. Antigravity 複数アカウント対応
+- `ANTIGRAVITY_ACCOUNTS` で複数インスタンス（port）を定義
+- `/account [name]` でアカウント切替
+- アカウント選択は **ユーザー単位 + チャネル単位** で保持
+- ワークスペース接続時に安全なフォールバックを実施
 
-```bash
-npm install -g lazy-gravity
-lazy-gravity setup
-```
+### 2. DeepThink ループ
+- `/loop [count]` でチャネルごとの推論深度を設定（1〜20）
+- 設定値は永続化され、再起動後も維持
+- 複雑タスクで「1回で終わる」問題を抑制
 
-The interactive wizard walks you through Discord bot creation, token setup, and workspace configuration. When done:
+### 3. Discord 運用向け可視化
+- `/status` で現在チャネルの `Account` / `DeepThink` を確認可能
+- モード・接続・ミラー状態を1画面で把握
 
-```bash
-lazy-gravity open     # Launch Antigravity with CDP enabled
-lazy-gravity start    # Start the bot (Discord by default, or both platforms)
-```
-
-Or run directly without installing:
-
-```bash
-npx lazy-gravity
-```
+- Discord運用を最優先（Telegram はオプション扱い）
+- 実務で困るポイント（誤接続・設定の揮発）を潰す
+- チャネルごとに「どう使うか」を固定できる
 
 ---
+
+## 主な強化ポイント
+
+### 1. Antigravity 複数アカウント対応
+- `ANTIGRAVITY_ACCOUNTS` で複数インスタンス（port）を定義
+- `/account [name]` でアカウント切替
+- アカウント選択は **ユーザー単位 + チャネル単位** で保持
+- ワークスペース接続時に安全なフォールバックを実施
 
 ## Features
 
@@ -155,53 +157,40 @@ Telegram commands use underscores instead of subcommand syntax (Telegram does no
 - `/help` — Show available commands
 
 ### CLI Commands
+## クイックスタート
 
-```bash
-lazy-gravity              # Auto: runs setup if unconfigured, otherwise starts the bot
-lazy-gravity setup        # Interactive setup wizard
-lazy-gravity open         # Open Antigravity with CDP (auto-selects available port)
-lazy-gravity start        # Start the Discord bot
-lazy-gravity doctor       # Check environment and dependencies
-lazy-gravity --verbose    # Show debug-level logs (CDP details, detector events, etc.)
-lazy-gravity --quiet      # Only show errors
-lazy-gravity --version    # Show version
-lazy-gravity --help       # Show help
-```
+### 2. DeepThink ループ
+- `/loop [count]` でチャネルごとの推論深度を設定（1〜20）
+- 設定値は永続化され、再起動後も維持
+- 複雑タスクで「1回で終わる」問題を抑制
+
+### 3. Discord 運用向け可視化
+- `/status` で現在チャネルの `Account` / `DeepThink` を確認可能
+- モード・接続・ミラー状態を1画面で把握
 
 ---
 
-## Setup (Detailed)
+## クイックスタート
 
-### Option A: npm (Recommended)
+Node.js 18+ が必要です。
 
 ```bash
 npm install -g lazy-gravity
 lazy-gravity setup
+lazy-gravity open
+lazy-gravity start
 ```
 
-The wizard guides you through 4 steps:
-
-1. **Discord Bot Token** — create a bot at the [Discord Developer Portal](https://discord.com/developers/applications).
-   - Enable Privileged Gateway Intents: **PRESENCE, SERVER MEMBERS, MESSAGE CONTENT**.
-   - Generate an OAuth2 invite URL with the following bot permissions: **Manage Channels** (required for `/project`), **Send Messages**, **Embed Links**, **Attach Files**, **Read Message History**, and **Add Reactions**.
-   - Invite the bot to your server, then copy the bot token. Client ID is extracted from the token automatically.
-2. **Guild (Server) ID** — for instant slash command registration (optional; press Enter to skip).
-3. **Allowed User IDs** — Discord users authorized to interact with the bot.
-4. **Workspace Directory** — parent directory where your coding projects live.
-
-Config is saved to `~/.lazy-gravity/config.json`.
-
-### Option B: From source
+このレポジトリをソースから使う場合（**このページの Code ボタンで表示されるURLを使用**）:
 
 ```bash
-git clone https://github.com/tokyoweb3/LazyGravity.git
-cd LazyGravity
+git clone <このリポジトリのURL>
+ソースから使う場合:
+
+```bash
+git clone https://github.com/tokyoweb3/LazyGravityPlus.git
+cd LazyGravityPlus
 npm install
-```
-
-Set up your `.env` file:
-
-```bash
 cp .env.example .env
 ```
 
@@ -220,116 +209,97 @@ ANTIGRAVITY_ACCOUNTS=default:9222,work:9333
 Then start the bot:
 
 ```bash
+npm run build
 npm run start
 ```
 
-#### Adding Telegram Support (Optional)
+> 例: GitHub 上でこのリポジトリが `https://github.com/<your-account>/LazyGravityPlus` なら、
+> `git clone https://github.com/<your-account>/LazyGravityPlus.git` を使います。
 
-1. Install grammy: `npm install grammy`
-2. Create a bot via [@BotFather](https://t.me/BotFather) on Telegram and copy the token.
-3. Add the following to your `.env`:
+---
+
+
+---
+
+## 必須設定（.env）
 
 ```env
-PLATFORMS=discord,telegram        # or just "telegram" for Telegram-only
-TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
-TELEGRAM_ALLOWED_USER_IDS=123456789    # Your Telegram numeric user ID
+DISCORD_BOT_TOKEN=your_bot_token_here
+CLIENT_ID=your_client_id_here
+GUILD_ID=your_guild_id_here
+ALLOWED_USER_IDS=123456789012345678
+WORKSPACE_BASE_DIR=~/Code
+
+# このフォーク推奨
+BOT_LANGUAGE=ja
+ANTIGRAVITY_ACCOUNTS=default:9222,work:9333
 ```
 
-For Telegram-only deployments, Discord credentials (`DISCORD_BOT_TOKEN`, `CLIENT_ID`, `ALLOWED_USER_IDS`) are not required.
+### `ANTIGRAVITY_ACCOUNTS` の例
+- `default:9222` → 通常作業
+- `work:9333` → 検証/別アカウント用
 
-Alternatively, you can build and use the CLI:
+---
+
+## Discord コマンド
+
+- `/project list` — プロジェクト一覧
+- `/project create <name>` — 新規プロジェクト作成
+- `/new` — 新規チャットセッション
+- `/chat` — セッション状態確認
+- `/mode` — 実行モード切替
+- `/model [name]` — モデル切替
+- `/account [name]` — Antigravityアカウント確認/切替
+- `/loop [count]` — DeepThink回数の確認/設定
+- `/status` — 接続状態 + Account + DeepThink 表示
+- `/stop` — 生成停止
+- `/screenshot` — スクリーンショット取得
+- `/logs [lines] [level]` — ログ確認
+- `/help` — ヘルプ
+
+---
+
+## セキュリティ
+
+- 外部公開サーバー不要（ローカル実行）
+- 許可ユーザーIDで制御
+- 設定はローカル保存
+
+---
+
+## 運用メモ
+
+- まず `/account` と `/loop` をチャネルごとに設定すると安定します。
+- 長文/難問タスクは `loop` を 3〜8 程度に上げると改善しやすいです。
+- 反応が不安定なときは `/status` で Account と接続先を確認してください。
+
+---
+
+## NPM公開（フォーク運用者向け）
+
+この fork を npm 公開したい場合は、まず以下を実施してください。
+
+1. `package.json` の `name / repository / bugs / homepage / author` を fork 用に更新
+2. 公開物チェック:
 
 ```bash
+npm ci
 npm run build
-node dist/bin/cli.js setup    # or: node dist/bin/cli.js start
+npm run test
+npm run pack:check
 ```
 
-### Launch Antigravity with CDP
-
-LazyGravity connects to Antigravity via Chrome DevTools Protocol (CDP).
-You need to launch Antigravity with a remote debugging port enabled.
+3. 手動公開:
 
 ```bash
-# Easiest way (auto-selects an available port):
-lazy-gravity open
+npm login
+npm publish --access public
 ```
 
-If you cloned from source, you can also use the bundled launcher scripts (they auto-detect an available port from 9222–9666):
+4. 自動公開を使う場合は `npm run release:dry-run` で事前確認
 
-#### macOS
-Double-click **`start_antigravity_mac.command`** in the repo root.
+詳細は `docs/NPM_PUBLISHING.md` を参照。
 
-- **First run**: if you get a permission error, run `chmod +x start_antigravity_mac.command` once in the terminal.
+## ライセンス
 
-#### Windows
-Double-click **`start_antigravity_win.bat`** in the repo root.
-
-- **If it doesn't launch**: the executable may not be in your PATH. Right-click the file, edit it, and replace `"Antigravity.exe"` with the full install path (e.g. `"%LOCALAPPDATA%\Programs\Antigravity\Antigravity.exe"`).
-
-#### Linux
-On Linux (especially when using AppImages), the `antigravity` command might not be globally available.
-You can specify the exact path to your executable by setting the `ANTIGRAVITY_PATH` environment variable in your `.env` file:
-```env
-ANTIGRAVITY_PATH=/opt/applications/antigravity.AppImage
-```
-
-> **Tip**: CDP ports are auto-scanned from candidates (9222, 9223, 9333, 9444, 9555, 9666).
-> Launch Antigravity first, then start the bot — it connects automatically.
-
----
-
-## Troubleshooting
-
-If the bot is unresponsive or you've updated the code, restart it:
-
-1. **Stop the bot** — press `Ctrl + C` in the terminal, or:
-   ```bash
-   pkill -f "lazy-gravity"
-   ```
-2. **Restart**
-   ```bash
-   lazy-gravity start
-   # or, from source: npm run start
-   ```
-
-If Antigravity is restarted, the bot automatically attempts CDP reconnection. Sending a message triggers automatic project reconnection.
-
-Run `lazy-gravity doctor` to diagnose configuration and connectivity issues.
-
----
-
-## How CDP Connection Works
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/tokyoweb3/LazyGravity/main/docs/images/architecture.svg" alt="LazyGravity Architecture" width="100%" />
-</p>
-
-1. The bot scans debug ports (default: 9222) and auto-detects the Antigravity target
-2. Connects via WebSocket to CDP (`Runtime.evaluate` for DOM operations)
-3. Injects messages into the chat input, monitors Antigravity responses, and captures screenshots
-
-**On disconnect**: automatically retries up to 3 times (`maxReconnectAttempts`). If all retries fail, an error notification is sent to the active chat platform.
-
-## Platform Architecture
-
-LazyGravity uses a **platform abstraction layer** so the core bot logic is platform-independent:
-
-```
-src/platform/
-├── types.ts              # Shared interfaces (PlatformMessage, PlatformChannel, etc.)
-├── adapter.ts            # PlatformAdapter interface
-├── richContentBuilder.ts # Immutable builder for rich content (embeds/HTML)
-├── discord/              # Discord adapter (discord.js wrappers)
-│   ├── discordAdapter.ts
-│   └── wrappers.ts
-└── telegram/             # Telegram adapter (grammy-compatible wrappers)
-    ├── telegramAdapter.ts
-    ├── telegramFormatter.ts  # Markdown → Telegram HTML conversion
-    └── wrappers.ts
-```
-
-Both adapters implement the same `PlatformAdapter` interface and emit events through `PlatformAdapterEvents`. The `EventRouter` dispatches events to platform-agnostic handlers, and the `WorkspaceQueue` serializes concurrent requests per workspace across platforms.
-
-## License
-
-[MIT](LICENSE)
+MIT

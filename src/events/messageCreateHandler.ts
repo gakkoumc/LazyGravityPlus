@@ -6,6 +6,7 @@ import { WorkspaceCommandHandler } from '../commands/workspaceCommandHandler';
 import { ChatSessionRepository } from '../database/chatSessionRepository';
 import { UserPreferenceRepository } from '../database/userPreferenceRepository';
 import { AccountPreferenceRepository } from '../database/accountPreferenceRepository';
+import { ChannelPreferenceRepository } from '../database/channelPreferenceRepository';
 import { formatAsPlainText } from '../utils/plainTextFormatter';
 import type { PlatformChannel } from '../platform/types';
 import { wrapDiscordChannel } from '../platform/discord/wrappers';
@@ -32,6 +33,7 @@ import {
 } from '../utils/imageHandler';
 import { logger } from '../utils/logger';
 import { t } from '../utils/i18n';
+import { listAccountNames, resolveValidAccountName } from '../utils/accountUtils';
 
 export interface MessageCreateHandlerDeps {
     config: { allowedUserIds: string[]; extractionMode?: import('../utils/config').ExtractionMode };
@@ -74,6 +76,7 @@ export interface MessageCreateHandlerDeps {
     isImageAttachment?: (contentType: string | null | undefined, fileName: string | null | undefined) => boolean;
     userPrefRepo?: UserPreferenceRepository;
     accountPrefRepo?: AccountPreferenceRepository;
+    channelPrefRepo?: ChannelPreferenceRepository;
     antigravityAccounts?: { name: string; cdpPort: number }[];
 }
 
@@ -187,6 +190,7 @@ export function createMessageCreateHandler(deps: MessageCreateHandlerDeps) {
                     return;
                 }
                 deps.bridge.deepThinkCountByChannel?.set(message.channelId, n);
+                deps.channelPrefRepo?.setDeepThinkCount(message.channelId, n);
                 await message.reply(t('🧠 DeepThink loops set to **${count}**.', { count: n })).catch(() => {});
                     await message.reply('⚠️ 使用方法: `/loop <1-20>`').catch(() => {});
                     return;
@@ -198,6 +202,19 @@ export function createMessageCreateHandler(deps: MessageCreateHandlerDeps) {
 
             if (parsed.commandName === 'account') {
                 const accounts = deps.antigravityAccounts ?? [{ name: 'default', cdpPort: 9222 }];
+                const accountNames = listAccountNames(accounts);
+                const req = parsed.args?.[0];
+                if (!req) {
+                    const current = deps.bridge.selectedAccountByChannel?.get(message.channelId)
+                        ?? deps.channelPrefRepo?.getAccountName(message.channelId)
+                        ?? deps.accountPrefRepo?.getAccountName(message.author.id)
+                        ?? 'default';
+                    const effectiveCurrent = resolveValidAccountName(current, accounts);
+                    await message.reply(t('Current account: **${current}**\nAvailable: ${available}', { current: effectiveCurrent, available: accountNames.join(', ') })).catch(() => {});
+                    return;
+                }
+                if (!accountNames.includes(req)) {
+                    await message.reply(t('⚠️ Unknown account: **${name}**', { name: req })).catch(() => {});
                 const req = parsed.args?.[0];
                 if (!req) {
                     const current = deps.bridge.selectedAccountByChannel?.get(message.channelId) ?? deps.accountPrefRepo?.getAccountName(message.author.id) ?? 'default';
@@ -216,6 +233,11 @@ export function createMessageCreateHandler(deps: MessageCreateHandlerDeps) {
                 }
                 deps.bridge.selectedAccountByChannel?.set(message.channelId, req);
                 deps.accountPrefRepo?.setAccountName(message.author.id, req);
+                deps.channelPrefRepo?.setAccountName(message.channelId, req);
+                const channelWorkspace = deps.wsHandler.getWorkspaceForChannel(message.channelId);
+                if (channelWorkspace) {
+                    deps.bridge.pool.setPreferredAccountForWorkspace?.(channelWorkspace, req);
+                }
                 await message.reply(t('✅ Switched account to **${name}**.', { name: req })).catch(() => {});
                 await message.reply(`✅ アカウントを **${req}** に切り替えました。`).catch(() => {});
                 return;
@@ -302,6 +324,18 @@ export function createMessageCreateHandler(deps: MessageCreateHandlerDeps) {
                         }
 
                         try {
+                            const selectedAccount = deps.bridge.selectedAccountByChannel?.get(message.channelId)
+                                ?? deps.channelPrefRepo?.getAccountName(message.channelId)
+                                ?? deps.accountPrefRepo?.getAccountName(message.author.id)
+                                ?? 'default';
+                            const safeAccount = resolveValidAccountName(selectedAccount, deps.antigravityAccounts);
+                            deps.bridge.selectedAccountByChannel?.set(message.channelId, safeAccount);
+                            deps.bridge.pool.setPreferredAccountForWorkspace?.(workspacePath, safeAccount);
+                            if (safeAccount !== selectedAccount) {
+                                deps.accountPrefRepo?.setAccountName(message.author.id, safeAccount);
+                                deps.channelPrefRepo?.setAccountName(message.channelId, safeAccount);
+                            }
+                            const cdp = await deps.bridge.pool.getOrConnect(workspacePath, { name: safeAccount });
                             const selectedAccount = deps.bridge.selectedAccountByChannel?.get(message.channelId) ?? deps.accountPrefRepo?.getAccountName(message.author.id) ?? 'default';
                             const cdp = await deps.bridge.pool.getOrConnect(workspacePath, { name: selectedAccount });
                             const projectName = deps.bridge.pool.extractProjectName(workspacePath);
@@ -383,6 +417,9 @@ export function createMessageCreateHandler(deps: MessageCreateHandlerDeps) {
                                     resolve();
                                 };
                                 const loopCount = deps.bridge.deepThinkCountByChannel?.get(message.channelId) ?? 1;
+                                const loopCount = deps.bridge.deepThinkCountByChannel?.get(message.channelId)
+                                    ?? deps.channelPrefRepo?.getDeepThinkCount(message.channelId)
+                                    ?? 1;
                                 const loopCount = deepThinkCountByChannel.get(message.channelId) ?? 1;
                                 const effectivePrompt = loopCount > 1
                                     ? `${promptText}\n\n[DeepThink mode: perform ${loopCount} internal refinement passes before final answer.]`
