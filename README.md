@@ -15,6 +15,37 @@ LazyGravity Plus は、Antigravity をローカルPCで動かしつつ、Discord
 
 ---
 
+
+## Download & Install Options
+
+### 1) npm global install (recommended)
+
+```bash
+npm install -g lazy-gravity
+lazy-gravity setup
+```
+
+### 2) npx (no install)
+
+```bash
+npx lazy-gravity
+```
+
+### 3) Download source ZIP from GitHub
+
+1. Open the repository page.
+2. Click **Code** → **Download ZIP**.
+3. Extract and move to your workspace.
+4. Run:
+
+```bash
+npm install
+npm run build
+npm run start
+```
+
+
+## Quick Setup
 ## 主な強化ポイント
 
 ### 1. Antigravity 複数アカウント対応
@@ -46,6 +77,86 @@ LazyGravity Plus は、Antigravity をローカルPCで動かしつつ、Discord
 - アカウント選択は **ユーザー単位 + チャネル単位** で保持
 - ワークスペース接続時に安全なフォールバックを実施
 
+## Features
+
+1. **Fully Local & Secure**
+   - **No external server or port exposure** — runs as a local process on your PC, communicating directly with Discord/Telegram.
+   - **Whitelist access control**: only authorized user IDs can interact with the bot (per-platform allowlists).
+   - **Secure credential management**: Bot tokens and API keys are stored locally (never in source code).
+   - **Path traversal prevention & resource protection**: sandboxed directory access and concurrent task limits prevent abuse.
+
+2. **Multi-Platform Support**
+   - **Discord** (default): Full feature set with slash commands, rich embeds, reactions, and channel management.
+   - **Telegram** (optional): Send prompts, receive responses, and use inline keyboard buttons. Requires [grammy](https://grammy.dev/) (`npm install grammy`).
+   - Run both platforms simultaneously from a single process, or use either one standalone.
+
+3. **Project Management (Channel-Directory Binding)**
+   - **Discord**: Use `/project` to bind a channel to a local project directory via an interactive select menu.
+   - **Telegram**: Use `/project` to bind a chat to a workspace directory.
+   - Messages sent in a bound channel/chat are automatically forwarded to Antigravity with the correct project context.
+
+4. **Context-Aware Replies**
+   - **Discord**: Results delivered as rich Embeds. Use Reply to continue the conversation with full context preserved.
+   - **Telegram**: Results delivered as formatted HTML messages with inline keyboard buttons.
+
+5. **Real-Time Progress Monitoring**
+   - Long-running Antigravity tasks report progress as a series of messages (delivery confirmed / planning / analysis / execution / implementation / final summary).
+
+6. **File Attachments & Context Parsing**
+   - Send images (screenshots, mockups) or text files — they are automatically forwarded to Antigravity as context.
+
+## Usage & Commands
+
+### Natural Language Messages
+Just type in any bound channel:
+> `refactor the components under src/components. Make the layout look like yesterday's screenshot` (with image attached)
+
+### Slash Commands
+
+- `📂 /project list` — Browse projects via select menu; selecting one auto-creates a category and session channel
+- `📂 /project create <name>` — Create a new project directory + Discord category/channel
+- `💬 /new` — Start a new Antigravity chat session in the current project
+- `💬 /chat` — Show current session info and list all sessions in the project
+- `⚙️ /model [name]` — Switch the LLM model (e.g. `gpt-4o`, `claude-3-opus`, `gemini-1.5-pro`)
+- `⚙️ /mode` — Switch execution mode via dropdown (`code`, `architect`, `ask`, etc.)
+- `📝 /template list` — Display registered templates with execute buttons
+- `📝 /template add <name> <prompt>` — Register a new prompt template
+- `📝 /template delete <name>` — Delete a template
+- `🔗 /join` — Join an existing Antigravity session (shows up to 20 recent sessions)
+- `🔗 /mirror` — Toggle PC→Discord message mirroring for the current session
+- `🛑 /stop` — Force-stop a running Antigravity task
+- `📸 /screenshot` — Capture and send Antigravity's current screen
+- `🔧 /status` — Show bot connection status, current mode, and active project
+- `✅ /autoaccept [on|off|status]` — Toggle auto-approval of file edit dialogs
+- `📝 /output [embed|plain]` — Toggle output format between Embed and Plain Text (plain text is easier to copy on mobile)
+- `🧠 /loop [count]` — Set deep-think refinement loop count (1-20) for this channel
+- `👤 /account [name]` — Show or switch Antigravity account
+- `📋 /logs [lines] [level]` — View recent bot logs (ephemeral)
+- `🏓 /ping` — Check bot latency
+- `🧹 /cleanup [days]` — Scan and clean up inactive session channels (default: 7 days)
+- `❓ /help` — Display list of available commands
+
+### Telegram Commands
+
+Telegram commands use underscores instead of subcommand syntax (Telegram does not allow hyphens or spaces in command names).
+
+- `/project` — Manage workspace bindings (list, select, create)
+- `/project_create <name>` — Create a new workspace directory
+- `/new` — Start a new chat session
+- `/template` — List prompt templates with execute buttons
+- `/template_add <name> <prompt>` — Add a new prompt template
+- `/template_delete <name>` — Delete a prompt template
+- `/mode` — Switch execution mode
+- `/model` — Switch LLM model
+- `/screenshot` — Capture Antigravity screenshot
+- `/autoaccept [on|off]` — Toggle auto-accept mode
+- `/logs [count]` — Show recent log entries
+- `/stop` — Interrupt active LLM generation
+- `/status` — Show bot status and connections
+- `/ping` — Check bot latency
+- `/help` — Show available commands
+
+### CLI Commands
 ## クイックスタート
 
 ### 2. DeepThink ループ
@@ -81,6 +192,23 @@ git clone https://github.com/tokyoweb3/LazyGravityPlus.git
 cd LazyGravityPlus
 npm install
 cp .env.example .env
+```
+
+Edit `.env` and fill in the required values:
+
+```env
+DISCORD_BOT_TOKEN=your_bot_token_here
+GUILD_ID=your_guild_id_here
+ALLOWED_USER_IDS=123456789,987654321
+WORKSPACE_BASE_DIR=~/Code
+BOT_LANGUAGE=ja
+ANTIGRAVITY_ACCOUNTS=default:9222,work:9333
+# ANTIGRAVITY_PATH=/path/to/antigravity.AppImage  # Optional: For Linux users or custom installations
+```
+
+Then start the bot:
+
+```bash
 npm run build
 npm run start
 ```

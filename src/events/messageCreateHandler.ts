@@ -218,6 +218,11 @@ export function createMessageCreateHandler(deps: MessageCreateHandlerDeps) {
                 const req = parsed.args?.[0];
                 if (!req) {
                     const current = deps.bridge.selectedAccountByChannel?.get(message.channelId) ?? deps.accountPrefRepo?.getAccountName(message.author.id) ?? 'default';
+                    await message.reply(t('Current account: **${current}**\nAvailable: ${available}', { current, available: accounts.map((a) => a.name).join(', ') })).catch(() => {});
+                    return;
+                }
+                if (!accounts.some((a) => a.name === req)) {
+                    await message.reply(t('⚠️ Unknown account: **${name}**', { name: req })).catch(() => {});
                     await message.reply(`現在のアカウント: **${current}**
 利用可能: ${accounts.map((a) => a.name).join(', ')}`).catch(() => {});
                     return;
@@ -411,6 +416,7 @@ export function createMessageCreateHandler(deps: MessageCreateHandlerDeps) {
                                     );
                                     resolve();
                                 };
+                                const loopCount = deps.bridge.deepThinkCountByChannel?.get(message.channelId) ?? 1;
                                 const loopCount = deps.bridge.deepThinkCountByChannel?.get(message.channelId)
                                     ?? deps.channelPrefRepo?.getDeepThinkCount(message.channelId)
                                     ?? 1;
